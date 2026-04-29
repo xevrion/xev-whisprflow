@@ -2,777 +2,548 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VoiceFlow Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VoiceFlow</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  :root {
-    --bg: #0f0f11;
-    --surface: rgba(255,255,255,0.04);
-    --border: rgba(255,255,255,0.07);
-    --accent: #7c3aed;
-    --green: #10b981;
-    --amber: #f59e0b;
-    --red: #ef4444;
-    --text: #ffffff;
-    --text-secondary: rgba(255,255,255,0.5);
-    --text-muted: rgba(255,255,255,0.25);
-    --radius-card: 10px;
-    --radius-input: 6px;
-    --radius-pill: 20px;
-  }
+:root {
+  --bg: #0c0c0e;
+  --surface: #141416;
+  --border: rgba(255,255,255,0.06);
+  --accent: #7c3aed;
+  --green: #10b981;
+  --amber: #f59e0b;
+  --red: #ef4444;
+  --text: #e8e8ea;
+  --muted: rgba(255,255,255,0.35);
+  --faint: rgba(255,255,255,0.12);
+}
 
-  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.5; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.5;
+}
 
-  a { color: var(--accent); text-decoration: none; }
-  a:hover { text-decoration: underline; }
+nav {
+  width: 200px;
+  min-width: 200px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0;
+}
 
-  /* Layout */
-  .app { display: flex; height: 100vh; overflow: hidden; }
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.logo-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; flex-shrink: 0; }
+.logo-name { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
 
-  /* Sidebar */
-  .sidebar {
-    width: 220px; min-width: 220px;
-    background: rgba(255,255,255,0.02);
-    border-right: 1px solid var(--border);
-    display: flex; flex-direction: column;
-    padding: 20px 0;
-    overflow-y: auto;
-  }
-  .sidebar-logo {
-    display: flex; align-items: center; gap: 10px;
-    padding: 0 20px 24px;
-    font-size: 15px; font-weight: 600; letter-spacing: -0.3px;
-  }
-  .sidebar-logo .dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--accent); flex-shrink: 0;
-  }
-  .status-pill {
-    display: inline-flex; align-items: center; gap: 6px;
-    margin: 0 20px 20px;
-    padding: 5px 10px;
-    border-radius: var(--radius-pill);
-    border: 1px solid var(--border);
-    background: var(--surface);
-    font-size: 12px; font-weight: 500;
-  }
-  .status-pill .indicator {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: var(--text-muted);
-    transition: background 0.3s;
-  }
-  .status-pill.running .indicator { background: var(--green); }
-  .status-pill.recording .indicator { background: var(--green); animation: pulse 1s infinite; }
-  .status-pill.processing .indicator { background: var(--amber); }
-  .status-pill.error .indicator { background: var(--red); }
+.status-pill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 16px 16px; font-size: 12px; color: var(--muted);
+}
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.status-dot.offline { background: var(--red); }
 
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 16px; cursor: pointer; color: var(--muted);
+  transition: color 0.15s, background 0.15s; font-size: 13px;
+}
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.nav-item.active { color: var(--text); }
+.nav-icon { width: 15px; height: 15px; opacity: 0.7; flex-shrink: 0; }
+.nav-item.active .nav-icon { opacity: 1; }
 
-  .nav { display: flex; flex-direction: column; gap: 2px; padding: 0 12px; flex: 1; }
-  .nav-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 9px 10px;
-    border-radius: var(--radius-input);
-    cursor: pointer;
-    color: var(--text-secondary);
-    font-size: 13px; font-weight: 500;
-    transition: background 0.15s, color 0.15s;
-    border: none; background: transparent; width: 100%; text-align: left;
-  }
-  .nav-item:hover { background: var(--surface); color: var(--text); }
-  .nav-item.active { background: rgba(124,58,237,0.15); color: var(--accent); }
-  .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  .sidebar-bottom { padding: 16px 20px 4px; color: var(--text-muted); font-size: 11px; }
+nav .spacer { flex: 1; }
+.nav-footer { padding: 0 16px; color: var(--muted); font-size: 11px; }
 
-  /* Main content */
-  .main { flex: 1; overflow-y: auto; padding: 28px 32px; }
+main { flex: 1; overflow-y: auto; padding: 28px 32px; scrollbar-width: thin; scrollbar-color: var(--faint) transparent; }
 
-  .page { display: none; }
-  .page.active { display: block; }
+.view { display: none; }
+.view.active { display: block; }
 
-  .page-title { font-size: 20px; font-weight: 600; margin-bottom: 24px; letter-spacing: -0.3px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
 
-  /* Cards */
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    padding: 20px;
-  }
-  .card-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 6px; }
-  .card-value { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
-  .card-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.stat-card { padding: 14px 16px; }
+.stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+.stat-value { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
 
-  /* Stats row */
-  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+.live-card { margin-bottom: 16px; }
+.live-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.state-circle { width: 10px; height: 10px; border-radius: 50%; background: var(--faint); flex-shrink: 0; transition: background 0.3s; }
+.state-circle.recording { background: var(--green); animation: pulse 1s infinite; }
+.state-circle.processing { background: var(--amber); }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+.state-label { font-size: 13px; color: var(--muted); }
+.state-label.recording { color: var(--green); }
+.state-label.processing { color: var(--amber); }
 
-  /* Live status card */
-  .live-card { margin-bottom: 20px; }
-  .live-inner { display: flex; align-items: center; gap: 20px; }
-  .state-circle {
-    width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0;
-    background: rgba(255,255,255,0.06);
-    border: 2px solid rgba(255,255,255,0.1);
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.3s, border-color 0.3s;
-  }
-  .state-circle.recording { background: rgba(16,185,129,0.15); border-color: var(--green); }
-  .state-circle.processing { background: rgba(245,158,11,0.15); border-color: var(--amber); }
-  .state-circle svg { width: 22px; height: 22px; stroke: var(--text-muted); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: stroke 0.3s; }
-  .state-circle.recording svg { stroke: var(--green); }
-  .state-circle.processing svg { stroke: var(--amber); }
+.mic-bar-track { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 14px; }
+.mic-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; width: 0%; transition: width 80ms ease-out; }
 
-  .live-info { flex: 1; }
-  .live-state-label { font-size: 15px; font-weight: 600; text-transform: capitalize; margin-bottom: 8px; }
-  .mic-bar-wrap { display: flex; align-items: center; gap: 10px; }
-  .mic-bar-track { flex: 1; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
-  .mic-bar-fill { height: 100%; width: 0%; background: var(--green); border-radius: 2px; transition: width 80ms ease-out; }
-  .mic-label { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
-  .last-transcript { margin-top: 14px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: var(--radius-input); border: 1px solid var(--border); }
-  .last-transcript-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
-  .last-transcript-text { font-size: 13px; color: var(--text-secondary); font-style: italic; min-height: 18px; }
+.last-transcript { font-size: 13px; color: var(--muted); min-height: 20px; }
+.last-transcript.has-text { color: var(--text); }
 
-  /* Recent activity */
-  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-  .section-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; }
-  .section-link { font-size: 12px; color: var(--accent); cursor: pointer; background: none; border: none; }
-  .section-link:hover { text-decoration: underline; }
+.activity-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.activity-header h3 { font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.view-all { font-size: 12px; color: var(--accent); cursor: pointer; }
+.view-all:hover { opacity: 0.8; }
 
-  .activity-list { display: flex; flex-direction: column; gap: 10px; }
-  .activity-item {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    padding: 14px 16px;
-    opacity: 0; transform: translateY(4px);
-    animation: fadeIn 0.2s ease forwards;
-  }
-  @keyframes fadeIn {
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .activity-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-  .activity-time { font-size: 11px; color: var(--text-muted); }
-  .activity-toggle { font-size: 11px; color: var(--accent); cursor: pointer; background: none; border: none; }
-  .activity-polished { font-size: 13px; color: var(--text); }
-  .activity-raw { font-size: 12px; color: var(--text-muted); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); display: none; }
-  .activity-raw.visible { display: block; }
+.activity-list { display: flex; flex-direction: column; }
+.activity-item { padding: 10px 0; border-bottom: 1px solid var(--border); opacity: 0; transform: translateY(4px); animation: fadein 0.2s ease forwards; }
+.activity-item:last-child { border-bottom: none; }
+@keyframes fadein { to { opacity:1; transform:none; } }
+.activity-time { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+.activity-text { font-size: 13px; }
+.activity-raw-toggle { font-size: 11px; color: var(--muted); cursor: pointer; margin-top: 3px; display: inline-block; }
+.activity-raw-toggle:hover { color: var(--text); }
+.activity-raw { display: none; font-size: 12px; color: var(--muted); margin-top: 4px; font-style: italic; }
+.activity-empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
 
-  .empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); }
-  .empty-state svg { width: 40px; height: 40px; margin-bottom: 12px; stroke: var(--text-muted); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-  .empty-state p { font-size: 14px; }
+.search-input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; color: var(--text); font-size: 13px; outline: none; margin-bottom: 16px; font-family: inherit; }
+.search-input::placeholder { color: var(--muted); }
+.search-input:focus { border-color: var(--faint); }
 
-  /* History page */
-  .search-wrap { margin-bottom: 16px; }
-  .search-input {
-    width: 100%; padding: 9px 14px;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius-input); color: var(--text);
-    font-size: 13px; outline: none;
-    transition: border-color 0.15s;
-  }
-  .search-input::placeholder { color: var(--text-muted); }
-  .search-input:focus { border-color: var(--accent); }
+.history-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.history-item:last-child { border-bottom: none; }
+.history-time { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.history-text { font-size: 13px; }
+.history-raw { font-size: 12px; color: var(--muted); margin-top: 4px; font-style: italic; display: none; }
+.empty-state { text-align: center; padding: 60px 0; color: var(--muted); font-size: 13px; }
+.empty-icon { font-size: 28px; margin-bottom: 10px; opacity: 0.4; }
 
-  .history-list { display: flex; flex-direction: column; gap: 10px; }
+.settings-sections { display: flex; flex-direction: column; gap: 20px; max-width: 520px; }
+.section-title { font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+.field { margin-bottom: 12px; }
+.field:last-child { margin-bottom: 0; }
+.field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+.field input[type=text], .field select {
+  width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  padding: 7px 10px; color: var(--text); font-size: 13px; font-family: inherit; outline: none;
+}
+.field input[type=text]:focus, .field select:focus { border-color: var(--faint); }
+.field select option { background: #1a1a1e; }
 
-  /* Settings page */
-  .settings-section { margin-bottom: 28px; }
-  .settings-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.color-row { display: flex; gap: 8px; align-items: center; }
+.color-row input[type=color] { width: 36px; height: 32px; border: 1px solid var(--border); border-radius: 6px; padding: 2px; background: var(--surface); cursor: pointer; }
+.color-row input[type=text] { flex: 1; }
 
-  .field { margin-bottom: 14px; }
-  .field label { display: block; font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 5px; }
-  .field input[type=text],
-  .field select {
-    width: 100%; padding: 8px 12px;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius-input); color: var(--text);
-    font-size: 13px; outline: none;
-    transition: border-color 0.15s;
-    appearance: none;
-  }
-  .field input[type=text]:focus,
-  .field select:focus { border-color: var(--accent); }
-  .field input[type=color] {
-    width: 40px; height: 32px; padding: 2px; cursor: pointer;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius-input); vertical-align: middle;
-  }
-  .color-row { display: flex; align-items: center; gap: 10px; }
-  .color-row input[type=text] { flex: 1; }
+.slider-row { display: flex; align-items: center; gap: 10px; }
+.slider-row input[type=range] { flex: 1; accent-color: var(--accent); }
+.slider-val { font-size: 12px; color: var(--muted); min-width: 28px; }
+.hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
 
-  .slider-row { display: flex; align-items: center; gap: 12px; }
-  .slider-row input[type=range] { flex: 1; accent-color: var(--accent); }
-  .slider-val { font-size: 12px; color: var(--text-secondary); min-width: 28px; text-align: right; }
+.service-btns { display: flex; gap: 8px; }
+.btn { padding: 7px 14px; border-radius: 6px; font-size: 13px; font-family: inherit; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text); transition: background 0.15s; }
+.btn:hover { background: rgba(255,255,255,0.06); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; margin-top: 8px; }
+.btn-primary:hover { opacity: 0.85; }
 
-  .service-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
-  .btn {
-    padding: 8px 16px; border-radius: var(--radius-input);
-    border: 1px solid var(--border);
-    cursor: pointer; font-size: 13px; font-weight: 500;
-    transition: background 0.15s, border-color 0.15s, color 0.15s;
-    background: var(--surface); color: var(--text);
-  }
-  .btn:hover { background: rgba(255,255,255,0.08); }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .btn.primary:hover { background: #6d28d9; border-color: #6d28d9; }
-  .btn.danger { border-color: rgba(239,68,68,0.4); color: var(--red); }
-  .btn.danger:hover { background: rgba(239,68,68,0.1); }
-  .btn.success-btn { border-color: rgba(16,185,129,0.4); color: var(--green); }
-  .btn.success-btn:hover { background: rgba(16,185,129,0.1); }
+.reconnect-banner { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #1a1a1e; border: 1px solid var(--border); border-radius: 6px; padding: 8px 14px; font-size: 12px; color: var(--muted); display: none; z-index: 100; }
+.reconnect-banner.visible { display: block; }
 
-  .save-bar { display: flex; align-items: center; justify-content: flex-end; gap: 14px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
-
-  /* Reconnecting banner */
-  .reconnect-banner {
-    position: fixed; top: 0; left: 0; right: 0;
-    background: rgba(245,158,11,0.12); border-bottom: 1px solid rgba(245,158,11,0.3);
-    color: var(--amber); text-align: center;
-    font-size: 12px; font-weight: 500; padding: 8px;
-    display: none; z-index: 100;
-  }
-  .reconnect-banner.visible { display: block; }
-
-  /* Toasts */
-  .toast-container { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 200; }
-  .toast {
-    background: rgba(30,30,35,0.96); border: 1px solid var(--border);
-    border-left: 3px solid var(--green);
-    border-radius: var(--radius-input); padding: 12px 16px;
-    font-size: 13px; max-width: 300px;
-    animation: toastIn 0.2s ease forwards;
-    pointer-events: none;
-  }
-  .toast.error { border-left-color: var(--red); }
-  @keyframes toastIn {
-    from { opacity: 0; transform: translateX(16px); }
-    to { opacity: 1; transform: translateX(0); }
-  }
-  @keyframes toastOut {
-    from { opacity: 1; }
-    to { opacity: 0; }
-  }
+.toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 200; }
+.toast { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--green); border-radius: 6px; padding: 10px 14px; font-size: 13px; animation: fadein 0.2s ease; }
+.toast.error { border-left-color: var(--red); }
 </style>
 </head>
 <body>
 
-<div class="reconnect-banner" id="reconnectBanner">Reconnecting to VoiceFlow...</div>
-<div class="toast-container" id="toastContainer"></div>
+<nav>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <span class="logo-name">voiceflow</span>
+  </div>
+  <div class="status-pill">
+    <div class="status-dot" id="connDot"></div>
+    <span id="connLabel">connecting</span>
+  </div>
+  <div class="nav-item active" data-view="dashboard">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+      <rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/>
+      <rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/>
+    </svg>
+    Dashboard
+  </div>
+  <div class="nav-item" data-view="history">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="8" cy="8" r="6.5"/><polyline points="8,4.5 8,8 10.5,10"/>
+    </svg>
+    History
+  </div>
+  <div class="nav-item" data-view="settings">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="8" cy="8" r="2"/>
+      <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M11.54 4.46l1.41-1.41M3.05 12.95l1.41-1.41"/>
+    </svg>
+    Settings
+  </div>
+  <div class="spacer"></div>
+  <div class="nav-footer">v0.1.0</div>
+</nav>
 
-<div class="app">
-  <!-- Sidebar -->
-  <aside class="sidebar">
-    <div class="sidebar-logo">
-      <div class="dot"></div>
-      voiceflow
+<main>
+  <div class="view active" id="view-dashboard">
+    <div class="stats">
+      <div class="card stat-card">
+        <div class="stat-label">Today</div>
+        <div class="stat-value" id="statToday">0</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-label">Words saved</div>
+        <div class="stat-value" id="statWords">0</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-label">Avg length</div>
+        <div class="stat-value" id="statAvg">0</div>
+      </div>
     </div>
 
-    <div class="status-pill" id="statusPill">
-      <div class="indicator"></div>
-      <span id="statusPillText">idle</span>
+    <div class="card live-card">
+      <div class="live-top">
+        <div class="state-circle" id="stateCircle"></div>
+        <span class="state-label" id="stateLabel">Ready</span>
+      </div>
+      <div class="mic-bar-track">
+        <div class="mic-bar-fill" id="micBar"></div>
+      </div>
+      <div class="last-transcript" id="lastTranscript">Nothing recorded yet.</div>
     </div>
 
-    <nav class="nav">
-      <button class="nav-item active" data-page="dashboard">
-        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-        Dashboard
-      </button>
-      <button class="nav-item" data-page="history">
-        <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        History
-      </button>
-      <button class="nav-item" data-page="settings">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Settings
-      </button>
-    </nav>
+    <div class="card">
+      <div class="activity-header">
+        <h3>Recent</h3>
+        <span class="view-all" id="viewAllLink">View all</span>
+      </div>
+      <div class="activity-list" id="activityList">
+        <div class="activity-empty">No recordings yet.</div>
+      </div>
+    </div>
+  </div>
 
-    <div class="sidebar-bottom">v0.1.0 &nbsp;·&nbsp; <span id="uptimeDisplay">--</span></div>
-  </aside>
+  <div class="view" id="view-history">
+    <input class="search-input" id="historySearch" placeholder="Search..." type="text">
+    <div id="historyList"></div>
+  </div>
 
-  <!-- Main -->
-  <main class="main">
+  <div class="view" id="view-settings">
+    <div class="settings-sections">
 
-    <!-- Dashboard page -->
-    <div class="page active" id="page-dashboard">
-      <div class="page-title">Dashboard</div>
-
-      <div class="stats-row">
+      <div>
+        <div class="section-title">Hotkey</div>
         <div class="card">
-          <div class="card-label">Today</div>
-          <div class="card-value" id="statToday">0</div>
-          <div class="card-sub">dictations</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Words today</div>
-          <div class="card-value" id="statWords">0</div>
-          <div class="card-sub">estimated</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Avg length</div>
-          <div class="card-value" id="statAvg">0</div>
-          <div class="card-sub">words / dictation</div>
+          <div class="field">
+            <label>Key</label>
+            <input type="text" id="cfgHotkey" placeholder="KEY_RIGHTALT">
+            <div class="hint">evdev key name. Requires restart.</div>
+          </div>
         </div>
       </div>
 
-      <div class="card live-card">
-        <div class="live-inner">
-          <div class="state-circle" id="stateCircle">
-            <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      <div>
+        <div class="section-title">Microphone</div>
+        <div class="card">
+          <div class="field">
+            <label>Device</label>
+            <select id="cfgAudioDevice"><option value="">System default</option></select>
           </div>
-          <div class="live-info">
-            <div class="live-state-label" id="liveStateLabel">Idle</div>
-            <div class="mic-bar-wrap">
-              <div class="mic-bar-track"><div class="mic-bar-fill" id="micBar"></div></div>
-              <span class="mic-label">mic level</span>
+          <div class="field">
+            <label>Sample rate</label>
+            <select id="cfgSampleRate">
+              <option value="16000">16000 Hz</option>
+              <option value="44100">44100 Hz</option>
+              <option value="48000">48000 Hz</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-title">Overlay</div>
+        <div class="card">
+          <div class="field">
+            <label>Glow color</label>
+            <div class="color-row">
+              <input type="color" id="cfgColorPicker" value="#7c3aed">
+              <input type="text" id="cfgColorHex" value="#7c3aed" placeholder="#7c3aed">
+            </div>
+          </div>
+          <div class="field">
+            <label>Border width</label>
+            <div class="slider-row">
+              <input type="range" id="cfgBorderWidth" min="2" max="20" value="8">
+              <span class="slider-val" id="cfgBorderWidthVal">8px</span>
             </div>
           </div>
         </div>
-        <div class="last-transcript">
-          <div class="last-transcript-label">Last transcript</div>
-          <div class="last-transcript-text" id="lastTranscript">Nothing yet — hold Right Alt to dictate</div>
-        </div>
       </div>
 
-      <div class="section-header">
-        <div class="section-title">Recent activity</div>
-        <button class="section-link" onclick="navigateTo('history')">View all</button>
-      </div>
-      <div class="activity-list" id="recentList">
-        <div class="empty-state">
-          <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-          <p>No dictations yet</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- History page -->
-    <div class="page" id="page-history">
-      <div class="page-title">History</div>
-      <div class="search-wrap">
-        <input class="search-input" type="text" placeholder="Search transcripts..." id="historySearch" oninput="filterHistory()">
-      </div>
-      <div class="history-list" id="historyList">
-        <div class="empty-state">
-          <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-          <p>No history found</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Settings page -->
-    <div class="page" id="page-settings">
-      <div class="page-title">Settings</div>
-
-      <div class="settings-section">
-        <div class="settings-section-title">Hotkey</div>
-        <div class="field">
-          <label>Push-to-talk key (evdev name)</label>
-          <input type="text" id="cfg-hotkey-key" placeholder="KEY_RIGHTALT">
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <div class="settings-section-title">Overlay</div>
-        <div class="field">
-          <label>Border color</label>
-          <div class="color-row">
-            <input type="color" id="cfg-overlay-colorPicker" value="#7c3aed" oninput="document.getElementById('cfg-overlay-color').value=this.value">
-            <input type="text" id="cfg-overlay-color" placeholder="#7C3AED" oninput="syncColorPicker()">
+      <div>
+        <div class="section-title">Speech to text</div>
+        <div class="card">
+          <div class="field">
+            <label>Model</label>
+            <select id="cfgSttModel">
+              <option value="nova-3">nova-3</option>
+              <option value="nova-2">nova-2</option>
+              <option value="base">base</option>
+            </select>
           </div>
-        </div>
-        <div class="field">
-          <label>Border width: <span id="cfg-overlay-widthVal">8</span>px</label>
-          <div class="slider-row">
-            <input type="range" id="cfg-overlay-width" min="2" max="24" value="8" oninput="document.getElementById('cfg-overlay-widthVal').textContent=this.value">
+          <div class="field">
+            <label>Language</label>
+            <select id="cfgSttLang">
+              <option value="en">English</option>
+              <option value="hi">Hindi</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="ja">Japanese</option>
+              <option value="zh">Chinese</option>
+            </select>
           </div>
         </div>
       </div>
 
-      <div class="settings-section">
-        <div class="settings-section-title">Speech-to-Text</div>
-        <div class="field">
-          <label>Backend</label>
-          <select id="cfg-stt-backend">
-            <option value="deepgram">Deepgram (cloud)</option>
-            <option value="local">Local Whisper (future)</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Language</label>
-          <select id="cfg-stt-language">
-            <option value="en">English</option>
-            <option value="es">Spanish</option>
-            <option value="fr">French</option>
-            <option value="de">German</option>
-            <option value="pt">Portuguese</option>
-            <option value="zh">Chinese</option>
-            <option value="ja">Japanese</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Model</label>
-          <select id="cfg-stt-model">
-            <option value="nova-3">nova-3 (recommended)</option>
-            <option value="nova-2">nova-2</option>
-            <option value="nova">nova</option>
-            <option value="base">base</option>
-          </select>
+      <div>
+        <div class="section-title">LLM cleanup</div>
+        <div class="card">
+          <div class="field">
+            <label>Model</label>
+            <select id="cfgLlmModel">
+              <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
+              <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
+              <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      <div class="settings-section">
-        <div class="settings-section-title">Language Model (cleanup)</div>
-        <div class="field">
-          <label>Backend</label>
-          <select id="cfg-llm-backend">
-            <option value="groq">Groq (cloud)</option>
-            <option value="local">Local llama.cpp (future)</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Model</label>
-          <select id="cfg-llm-model">
-            <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (recommended)</option>
-            <option value="llama-3.1-70b-versatile">llama-3.1-70b-versatile</option>
-            <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
-            <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
-          </select>
+      <div>
+        <div class="section-title">Service</div>
+        <div class="card">
+          <div class="service-btns">
+            <button class="btn" onclick="serviceAction('start')">Start</button>
+            <button class="btn" onclick="serviceAction('stop')">Stop</button>
+            <button class="btn" onclick="serviceAction('restart')">Restart</button>
+          </div>
         </div>
       </div>
 
-      <div class="settings-section">
-        <div class="settings-section-title">Service control</div>
-        <div class="service-buttons">
-          <button class="btn success-btn" onclick="serviceAction('start')">Start</button>
-          <button class="btn danger" onclick="serviceAction('stop')">Stop</button>
-          <button class="btn" onclick="serviceAction('restart')">Restart</button>
-        </div>
-      </div>
-
-      <div class="save-bar">
-        <button class="btn primary" onclick="saveSettings()">Save settings</button>
-      </div>
+      <button class="btn btn-primary" onclick="saveSettings()">Save settings</button>
     </div>
+  </div>
+</main>
 
-  </main>
-</div>
+<div class="reconnect-banner" id="reconnectBanner">Reconnecting to VoiceFlow...</div>
+<div class="toast-container" id="toastContainer"></div>
 
 <script>
-// ============================================================
-// State
-// ============================================================
-let ws = null;
-let wsRetryTimer = null;
-let uptimeBase = 0; // server uptime_s at last status event
-let uptimeLocalBase = Date.now(); // local timestamp when we got it
-let allHistory = [];
+let ws, allHistory = [], recentActivity = [];
 
-// ============================================================
-// Navigation
-// ============================================================
-function navigateTo(page) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-' + page).classList.add('active');
-  document.querySelector(`[data-page="${page}"]`).classList.add('active');
-
-  if (page === 'history') loadHistory();
-  if (page === 'settings') loadSettings();
-}
-
-document.querySelectorAll('.nav-item').forEach(btn => {
-  btn.addEventListener('click', () => navigateTo(btn.dataset.page));
+// Nav
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('view-' + el.dataset.view).classList.add('active');
+    if (el.dataset.view === 'history') renderHistory(document.getElementById('historySearch').value);
+    if (el.dataset.view === 'settings') loadSettings();
+  });
 });
 
-// ============================================================
-// WebSocket
-// ============================================================
-function connectWS() {
-  const url = `ws://${location.host}/ws`;
-  ws = new WebSocket(url);
+document.getElementById('viewAllLink').addEventListener('click', () => {
+  document.querySelector('[data-view="history"]').click();
+});
 
+document.getElementById('historySearch').addEventListener('input', e => renderHistory(e.target.value));
+
+// WebSocket
+function connect() {
+  ws = new WebSocket('ws://localhost:7878/ws');
   ws.onopen = () => {
     document.getElementById('reconnectBanner').classList.remove('visible');
-    if (wsRetryTimer) { clearTimeout(wsRetryTimer); wsRetryTimer = null; }
-    fetchStatus();
+    document.getElementById('connDot').classList.remove('offline');
+    document.getElementById('connLabel').textContent = 'connected';
   };
-
-  ws.onmessage = (e) => {
-    let msg;
-    try { msg = JSON.parse(e.data); } catch { return; }
-    handleEvent(msg);
-  };
-
-  ws.onclose = ws.onerror = () => {
+  ws.onclose = () => {
     document.getElementById('reconnectBanner').classList.add('visible');
-    wsRetryTimer = setTimeout(connectWS, 3000);
+    document.getElementById('connDot').classList.add('offline');
+    document.getElementById('connLabel').textContent = 'disconnected';
+    setTimeout(connect, 3000);
+  };
+  ws.onerror = () => ws.close();
+  ws.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'status') handleStatus(msg);
+    else if (msg.type === 'amplitude') document.getElementById('micBar').style.width = (msg.value * 100) + '%';
+    else if (msg.type === 'transcript') handleTranscript(msg);
   };
 }
 
-function handleEvent(msg) {
-  if (msg.type === 'status') {
-    uptimeBase = msg.uptime_s || 0;
-    uptimeLocalBase = Date.now();
-    updateState(msg.state);
-  } else if (msg.type === 'amplitude') {
-    document.getElementById('micBar').style.width = Math.min(100, (msg.value || 0) * 100 * 4) + '%';
-  } else if (msg.type === 'transcript') {
-    document.getElementById('lastTranscript').textContent = msg.polished || msg.raw || '';
-    prependActivity({ ts: msg.ts, raw: msg.raw, polished: msg.polished });
-    allHistory.unshift({ ts: msg.ts, raw: msg.raw, polished: msg.polished });
-    updateStats();
-  } else if (msg.type === 'error') {
-    toast(msg.message || 'An error occurred', true);
-  }
-}
-
-// ============================================================
-// State display
-// ============================================================
-function updateState(state) {
+function handleStatus(msg) {
   const circle = document.getElementById('stateCircle');
-  const pill = document.getElementById('statusPill');
-  const label = document.getElementById('liveStateLabel');
-  const pillText = document.getElementById('statusPillText');
+  const label = document.getElementById('stateLabel');
+  circle.className = 'state-circle ' + msg.state;
+  label.textContent = {idle:'Ready', recording:'Recording...', processing:'Processing...'}[msg.state] || msg.state;
+  label.className = 'state-label ' + (msg.state !== 'idle' ? msg.state : '');
+}
 
-  circle.className = 'state-circle ' + (state !== 'idle' ? state : '');
-  pill.className = 'status-pill ' + (state === 'idle' ? 'running' : state);
-  label.textContent = state.charAt(0).toUpperCase() + state.slice(1);
-  pillText.textContent = state;
+function handleTranscript(msg) {
+  const el = document.getElementById('lastTranscript');
+  el.textContent = msg.polished || msg.raw || '';
+  el.classList.add('has-text');
+  recentActivity.unshift({ts: msg.ts, raw: msg.raw, polished: msg.polished});
+  if (recentActivity.length > 5) recentActivity.pop();
+  allHistory.unshift({ts: msg.ts, raw: msg.raw, polished: msg.polished});
+  renderActivity();
+  updateStats();
+}
 
-  if (state === 'idle') {
-    document.getElementById('micBar').style.width = '0%';
+function renderActivity() {
+  const list = document.getElementById('activityList');
+  if (!recentActivity.length) { list.innerHTML = '<div class="activity-empty">No recordings yet.</div>'; return; }
+  list.innerHTML = recentActivity.map(e => `
+    <div class="activity-item">
+      <div class="activity-time">${relTime(e.ts)}</div>
+      <div class="activity-text">${esc(e.polished || e.raw)}</div>
+      ${e.raw && e.raw !== e.polished ? `<span class="activity-raw-toggle" onclick="toggleRaw(this)">show raw</span><div class="activity-raw">${esc(e.raw)}</div>` : ''}
+    </div>`).join('');
+}
+
+function toggleRaw(el) {
+  const raw = el.nextElementSibling;
+  const v = raw.style.display === 'block';
+  raw.style.display = v ? 'none' : 'block';
+  el.textContent = v ? 'show raw' : 'hide raw';
+}
+
+function renderHistory(query) {
+  const list = document.getElementById('historyList');
+  const q = query.toLowerCase();
+  const filtered = allHistory.filter(e => !q || (e.polished||'').toLowerCase().includes(q) || (e.raw||'').toLowerCase().includes(q));
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">🎤</div>${allHistory.length ? 'No results.' : 'No recordings yet.'}</div>`;
+    return;
   }
+  list.innerHTML = filtered.map(e => `
+    <div class="history-item">
+      <div class="history-time">${relTime(e.ts)}</div>
+      <div class="history-text">${esc(e.polished || e.raw)}</div>
+      ${e.raw && e.raw !== e.polished ? `<div class="history-raw">${esc(e.raw)}</div>` : ''}
+    </div>`).join('');
 }
 
-// ============================================================
-// Uptime counter
-// ============================================================
-function formatUptime(s) {
-  if (s < 60) return s + 's';
-  if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
-  return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+function updateStats() {
+  const today = new Date().toDateString();
+  document.getElementById('statToday').textContent = allHistory.filter(e => new Date(e.ts).toDateString() === today).length;
+  const words = allHistory.reduce((n, e) => n + ((e.polished||e.raw||'').split(/\s+/).filter(Boolean).length), 0);
+  document.getElementById('statWords').textContent = words;
+  document.getElementById('statAvg').textContent = allHistory.length ? Math.round(words / allHistory.length) : 0;
 }
 
-setInterval(() => {
-  const elapsed = Math.floor((Date.now() - uptimeLocalBase) / 1000);
-  document.getElementById('uptimeDisplay').textContent = formatUptime(uptimeBase + elapsed);
-}, 1000);
-
-// ============================================================
-// Fetch status (REST fallback on load)
-// ============================================================
-async function fetchStatus() {
+// Settings
+async function loadSettings() {
   try {
-    const r = await fetch('/api/status');
-    const d = await r.json();
-    uptimeBase = d.uptime_s || 0;
-    uptimeLocalBase = Date.now();
-    updateState(d.state || 'idle');
-  } catch {}
+    const r = await fetch('/api/config');
+    const c = await r.json();
+    document.getElementById('cfgHotkey').value = c.hotkey?.key || 'KEY_RIGHTALT';
+
+    const sel = document.getElementById('cfgAudioDevice');
+    sel.innerHTML = '<option value="">System default</option>';
+    (c._audio_devices || []).forEach(d => {
+      const o = document.createElement('option');
+      o.value = d; o.textContent = d;
+      if (d === c.audio?.device) o.selected = true;
+      sel.appendChild(o);
+    });
+
+    document.getElementById('cfgSampleRate').value = c.audio?.sample_rate || 48000;
+    document.getElementById('cfgColorPicker').value = c.overlay?.color || '#7c3aed';
+    document.getElementById('cfgColorHex').value = c.overlay?.color || '#7c3aed';
+    const w = c.overlay?.width || 8;
+    document.getElementById('cfgBorderWidth').value = w;
+    document.getElementById('cfgBorderWidthVal').textContent = w + 'px';
+    document.getElementById('cfgSttModel').value = c.stt?.model || 'nova-3';
+    document.getElementById('cfgSttLang').value = c.stt?.language || 'en';
+    document.getElementById('cfgLlmModel').value = c.llm?.model || 'llama-3.1-8b-instant';
+  } catch (e) { toast('Failed to load config', true); }
 }
 
-// ============================================================
-// History
-// ============================================================
+async function saveSettings() {
+  const body = {
+    hotkey: { key: document.getElementById('cfgHotkey').value.trim() },
+    audio: { device: document.getElementById('cfgAudioDevice').value || null, sample_rate: parseInt(document.getElementById('cfgSampleRate').value) },
+    overlay: { color: document.getElementById('cfgColorHex').value.trim(), width: parseInt(document.getElementById('cfgBorderWidth').value) },
+    stt: { model: document.getElementById('cfgSttModel').value, language: document.getElementById('cfgSttLang').value },
+    llm: { model: document.getElementById('cfgLlmModel').value },
+  };
+  try {
+    const r = await fetch('/api/config', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json();
+    d.ok ? toast('Settings saved') : toast('Save failed: ' + (d.error || ''), true);
+  } catch { toast('Save failed', true); }
+}
+
+async function serviceAction(action) {
+  try {
+    const r = await fetch('/api/action', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({action}) });
+    const d = await r.json();
+    toast(d.ok ? `Service ${action}ed` : (d.error || 'Failed'), !d.ok);
+  } catch { toast('Failed', true); }
+}
+
+document.getElementById('cfgColorPicker').addEventListener('input', e => document.getElementById('cfgColorHex').value = e.target.value);
+document.getElementById('cfgColorHex').addEventListener('input', e => { if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) document.getElementById('cfgColorPicker').value = e.target.value; });
+document.getElementById('cfgBorderWidth').addEventListener('input', e => document.getElementById('cfgBorderWidthVal').textContent = e.target.value + 'px');
+
+function toast(msg, error = false) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (error ? ' error' : '');
+  el.textContent = msg;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
+
+function relTime(ts) {
+  if (!ts) return '';
+  const diff = (Date.now() - new Date(ts)) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  return new Date(ts).toLocaleDateString();
+}
+
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
 async function loadHistory() {
   try {
     const r = await fetch('/api/history');
     const d = await r.json();
     allHistory = d.entries || [];
-    renderHistory(allHistory);
+    recentActivity = allHistory.slice(0, 5);
+    renderActivity();
     updateStats();
   } catch {}
 }
 
-function renderHistory(entries) {
-  const container = document.getElementById('historyList');
-  if (!entries.length) {
-    container.innerHTML = `<div class="empty-state">
-      <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-      <p>No history found</p></div>`;
-    return;
-  }
-  container.innerHTML = entries.map((e, i) => buildEntryHTML(e, 'h' + i)).join('');
-}
-
-function buildEntryHTML(e, id) {
-  const ago = relativeTime(e.ts);
-  const polished = escHtml(e.polished || e.raw || '');
-  const raw = escHtml(e.raw || '');
-  const showRaw = e.raw && e.raw !== e.polished;
-  return `<div class="activity-item">
-    <div class="activity-meta">
-      <span class="activity-time">${ago}</span>
-      ${showRaw ? `<button class="activity-toggle" onclick="toggleRaw(this)">show raw</button>` : ''}
-    </div>
-    <div class="activity-polished">${polished}</div>
-    ${showRaw ? `<div class="activity-raw">${raw}</div>` : ''}
-  </div>`;
-}
-
-function toggleRaw(btn) {
-  const raw = btn.closest('.activity-item').querySelector('.activity-raw');
-  if (!raw) return;
-  raw.classList.toggle('visible');
-  btn.textContent = raw.classList.contains('visible') ? 'hide raw' : 'show raw';
-}
-
-function filterHistory() {
-  const q = document.getElementById('historySearch').value.toLowerCase();
-  const filtered = q ? allHistory.filter(e => (e.polished || '').toLowerCase().includes(q) || (e.raw || '').toLowerCase().includes(q)) : allHistory;
-  renderHistory(filtered);
-}
-
-function prependActivity(entry) {
-  const list = document.getElementById('recentList');
-  const empties = list.querySelectorAll('.empty-state');
-  empties.forEach(e => e.remove());
-
-  const div = document.createElement('div');
-  div.innerHTML = buildEntryHTML(entry, 'r' + Date.now());
-  const item = div.firstElementChild;
-
-  const items = list.querySelectorAll('.activity-item');
-  if (items.length >= 5) items[items.length - 1].remove();
-
-  list.insertBefore(item, list.firstChild);
-}
-
-// ============================================================
-// Stats
-// ============================================================
-function updateStats() {
-  const today = new Date().toDateString();
-  const todayEntries = allHistory.filter(e => new Date(e.ts).toDateString() === today);
-  const words = todayEntries.reduce((s, e) => s + wordCount(e.polished || e.raw || ''), 0);
-  const avg = todayEntries.length ? Math.round(words / todayEntries.length) : 0;
-  document.getElementById('statToday').textContent = todayEntries.length;
-  document.getElementById('statWords').textContent = words;
-  document.getElementById('statAvg').textContent = avg;
-}
-
-function wordCount(s) {
-  return s.trim() ? s.trim().split(/\s+/).length : 0;
-}
-
-// ============================================================
-// Settings
-// ============================================================
-async function loadSettings() {
-  try {
-    const r = await fetch('/api/config');
-    const cfg = await r.json();
-
-    setField('cfg-hotkey-key', cfg.hotkey?.key || 'KEY_RIGHTALT');
-    setField('cfg-overlay-color', cfg.overlay?.color || '#7C3AED');
-    document.getElementById('cfg-overlay-colorPicker').value = (cfg.overlay?.color || '#7C3AED').substring(0, 7);
-    const w = cfg.overlay?.width ?? 8;
-    document.getElementById('cfg-overlay-width').value = w;
-    document.getElementById('cfg-overlay-widthVal').textContent = w;
-    setSelect('cfg-stt-backend', cfg.stt?.backend || 'deepgram');
-    setSelect('cfg-stt-language', cfg.stt?.language || 'en');
-    setSelect('cfg-stt-model', cfg.stt?.model || 'nova-3');
-    setSelect('cfg-llm-backend', cfg.llm?.backend || 'groq');
-    setSelect('cfg-llm-model', cfg.llm?.model || 'llama-3.1-8b-instant');
-  } catch (e) {
-    toast('Failed to load settings', true);
-  }
-}
-
-async function saveSettings() {
-  const body = {
-    hotkey: { key: getField('cfg-hotkey-key') },
-    overlay: {
-      color: getField('cfg-overlay-color'),
-      width: parseInt(document.getElementById('cfg-overlay-width').value),
-    },
-    stt: {
-      backend: getSelect('cfg-stt-backend'),
-      language: getSelect('cfg-stt-language'),
-      model: getSelect('cfg-stt-model'),
-    },
-    llm: {
-      backend: getSelect('cfg-llm-backend'),
-      model: getSelect('cfg-llm-model'),
-    },
-  };
-  try {
-    const r = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const d = await r.json();
-    if (d.ok) toast('Settings saved');
-    else toast('Save failed: ' + (d.detail || 'unknown error'), true);
-  } catch (e) {
-    toast('Save failed: ' + e.message, true);
-  }
-}
-
-async function serviceAction(action) {
-  try {
-    const r = await fetch('/api/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
-    const d = await r.json();
-    toast(d.ok ? `Service ${action} sent` : `Failed: ${d.output || ''}`, !d.ok);
-  } catch (e) {
-    toast('Request failed: ' + e.message, true);
-  }
-}
-
-function syncColorPicker() {
-  const val = document.getElementById('cfg-overlay-color').value;
-  if (/^#[0-9a-fA-F]{6}$/.test(val)) {
-    document.getElementById('cfg-overlay-colorPicker').value = val;
-  }
-}
-
-// ============================================================
-// Helpers
-// ============================================================
-function setField(id, val) { const el = document.getElementById(id); if (el) el.value = val; }
-function getField(id) { const el = document.getElementById(id); return el ? el.value : ''; }
-function setSelect(id, val) { const el = document.getElementById(id); if (el) el.value = val; }
-function getSelect(id) { const el = document.getElementById(id); return el ? el.value : ''; }
-
-function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function relativeTime(iso) {
-  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-  return Math.floor(diff / 86400) + 'd ago';
-}
-
-function toast(msg, isError = false) {
-  const container = document.getElementById('toastContainer');
-  const div = document.createElement('div');
-  div.className = 'toast' + (isError ? ' error' : '');
-  div.textContent = msg;
-  container.appendChild(div);
-  setTimeout(() => {
-    div.style.animation = 'toastOut 0.2s ease forwards';
-    setTimeout(() => div.remove(), 200);
-  }, 2500);
-}
-
-// ============================================================
-// Init
-// ============================================================
-fetchStatus();
-loadHistory().then(() => {
-  // Populate recent activity from history
-  const recent = allHistory.slice(0, 5);
-  if (recent.length) {
-    document.getElementById('recentList').innerHTML = recent.map((e, i) => buildEntryHTML(e, 'init' + i)).join('');
-  }
-});
-connectWS();
+loadHistory();
+connect();
 </script>
 </body>
 </html>

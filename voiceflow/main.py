@@ -118,7 +118,7 @@ class VoiceFlowApp:
         self._overlay.start()
 
         # Start dashboard server
-        self._dashboard.start(self._loop)
+        self._dashboard.start()
 
         # Start tray icon
         self._tray.start()
@@ -192,7 +192,7 @@ class VoiceFlowApp:
 
         # Broadcast processing state
         await self._broadcast_status()
-        await self._dashboard.broadcast({"type": "amplitude", "value": 0.0})
+        self._dashboard.broadcast({"type": "amplitude", "value": 0.0})
 
         # Collect all audio
         audio_chunks = []
@@ -230,7 +230,7 @@ class VoiceFlowApp:
                 polished = await self._polish(transcript)
                 await self._inject(polished)
                 # Broadcast transcript event
-                await self._dashboard.broadcast({
+                self._dashboard.broadcast({
                     "type": "transcript",
                     "raw": transcript,
                     "polished": polished,
@@ -239,11 +239,11 @@ class VoiceFlowApp:
             else:
                 log.warning("Empty transcript — nothing to inject")
                 self._overlay.flash_error()
-                await self._dashboard.broadcast({"type": "error", "message": "Empty transcript"})
+                self._dashboard.broadcast({"type": "error", "message": "Empty transcript"})
         except Exception as e:
             log.error("Processing pipeline error: %s", e, exc_info=True)
             self._overlay.flash_error()
-            await self._dashboard.broadcast({"type": "error", "message": str(e)})
+            self._dashboard.broadcast({"type": "error", "message": str(e)})
         finally:
             self._overlay.hide()
             self._state = AppState.IDLE
@@ -302,14 +302,14 @@ class VoiceFlowApp:
         while self._state == AppState.RECORDING:
             amp = self._audio.amplitude
             self._overlay.set_amplitude(amp)
-            await self._dashboard.broadcast({"type": "amplitude", "value": round(amp, 4)})
+            self._dashboard.broadcast({"type": "amplitude", "value": round(amp, 4)})
             await asyncio.sleep(0.033)  # ~30fps update
 
     async def _broadcast_status(self) -> None:
         """Push current state to all dashboard WebSocket clients."""
         import time
         state_name = self._state.name.lower()
-        await self._dashboard.broadcast({
+        self._dashboard.broadcast({
             "type": "status",
             "state": state_name,
             "uptime_s": 0,  # dashboard computes its own uptime
