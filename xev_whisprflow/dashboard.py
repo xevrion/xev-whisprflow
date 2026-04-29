@@ -43,7 +43,8 @@ class DashboardServer:
         log.info("Dashboard running at http://localhost:%d", self.port)
 
     def stop(self) -> None:
-        pass
+        if hasattr(self, "_server"):
+            self._server.should_exit = True
 
     def set_state(self, state: str) -> None:
         self._state = state
@@ -61,11 +62,12 @@ class DashboardServer:
         config = uvicorn.Config(app, host="127.0.0.1", port=self.port,
                                 log_level="warning", access_log=False,
                                 loop="asyncio")
-        server = uvicorn.Server(config)
+        self._server = uvicorn.Server(config)
+        self._server.install_signal_handlers = lambda: None  # we handle signals
 
         async def run_with_fan_out():
             asyncio.create_task(self._fan_out_loop())
-            await server.serve()
+            await self._server.serve()
 
         asyncio.run(run_with_fan_out())
 

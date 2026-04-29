@@ -146,6 +146,7 @@ class App:
             pass
         finally:
             await self._cleanup()
+            import os; os._exit(0)
 
     async def _event_loop(self) -> None:
         """Main event loop — process hotkey events."""
@@ -346,6 +347,7 @@ class App:
 
     def _shutdown(self) -> None:
         log.info("Shutting down...")
+        self._dashboard.stop()
         self._overlay.stop()
         self._tray.stop()
         if self._loop:
