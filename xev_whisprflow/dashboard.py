@@ -55,9 +55,11 @@ class DashboardServer:
 
     def _run(self) -> None:
         import uvicorn
+        self._kill_existing()
         app = self._build_app()
         config = uvicorn.Config(app, host="127.0.0.1", port=self.port,
-                                log_level="warning", access_log=False)
+                                log_level="warning", access_log=False,
+                                loop="asyncio")
         server = uvicorn.Server(config)
 
         async def run_with_fan_out():
@@ -65,6 +67,24 @@ class DashboardServer:
             await server.serve()
 
         asyncio.run(run_with_fan_out())
+
+    def _kill_existing(self) -> None:
+        """Kill any process already using our port."""
+        import socket
+        with socket.socket() as s:
+            if s.connect_ex(("127.0.0.1", self.port)) != 0:
+                return  # port is free
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["fuser", "-k", f"{self.port}/tcp"],
+                capture_output=True, timeout=3,
+            )
+            if result.returncode == 0:
+                import time; time.sleep(0.3)
+                log.debug("Killed existing process on port %d", self.port)
+        except Exception:
+            pass
 
     async def _fan_out_loop(self) -> None:
         """Drain the thread-safe queue and push to all WS clients."""
