@@ -3,10 +3,10 @@ voiceflow/config.py
 
 Loads configuration from:
   1. Hardcoded defaults (below)
-  2. ~/.config/voiceflow/config.toml  (user overrides)
+  2. ~/.config/xev-whisprflow/config.toml  (user overrides)
   3. Environment variables / .env file (API keys + quick overrides)
 
-Access anywhere via:  from voiceflow.config import cfg
+Access anywhere via:  from xev_whisprflow.config import cfg
 """
 from __future__ import annotations
 
@@ -95,8 +95,8 @@ class Config:
     groq_api_key: str = ""
 
     # Runtime paths
-    config_dir: Path = field(default_factory=lambda: Path.home() / ".config" / "voiceflow")
-    data_dir: Path = field(default_factory=lambda: Path.home() / ".local" / "share" / "voiceflow")
+    config_dir: Path = field(default_factory=lambda: Path.home() / ".config" / "xev-whisprflow")
+    data_dir: Path = field(default_factory=lambda: Path.home() / ".local" / "share" / "xev-whisprflow")
     log_level: str = "INFO"
 
 
@@ -175,7 +175,7 @@ def write_default_config() -> None:
 
 [hotkey]
 # evdev key name for the push-to-talk hotkey.
-# Run `python -m voiceflow.hotkey --list` to see available keys.
+# Run `python -m xev_whisprflow.hotkey --list` to see available keys.
 key = "KEY_RIGHTALT"
 
 [overlay]

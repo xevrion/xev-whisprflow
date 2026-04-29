@@ -1,0 +1,25 @@
+[Unit]
+Description=xev-whisprflow — push-to-talk voice dictation for Linux
+After=graphical-session.target pipewire.service
+Wants=pipewire.service
+
+[Service]
+Type=simple
+ExecStart=%h/.local/share/xev-whisprflow/venv/bin/xev-whisprflow
+WorkingDirectory=%h/.local/share/xev-whisprflow
+Restart=on-failure
+RestartSec=3s
+
+EnvironmentFile=-%h/.config/xev-whisprflow/.env
+
+Environment=WAYLAND_DISPLAY=%E{WAYLAND_DISPLAY}
+Environment=XDG_RUNTIME_DIR=%E{XDG_RUNTIME_DIR}
+Environment=DBUS_SESSION_BUS_ADDRESS=%E{DBUS_SESSION_BUS_ADDRESS}
+Environment=DISPLAY=%E{DISPLAY}
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=xev-whisprflow
+
+[Install]
+WantedBy=graphical-session.target

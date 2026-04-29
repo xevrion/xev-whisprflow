@@ -219,7 +219,7 @@ class _LayerShellWindow(_BaseOverlayWindow):
         gi.require_version("GtkLayerShell", "0.1")
         from gi.repository import Gtk, GtkLayerShell, GLib, Gdk
 
-        self._app = Gtk.Application(application_id="ai.voiceflow.overlay")
+        self._app = Gtk.Application(application_id="io.github.xevrion.xev_whisprflow.overlay")
         self._app.connect("activate", self._activate)
         self._app.run(None)
 
@@ -278,7 +278,7 @@ class _PlainGtk4Window(_BaseOverlayWindow):
         gi.require_version("Gtk", "4.0")
         from gi.repository import Gtk, GLib
 
-        self._app = Gtk.Application(application_id="ai.voiceflow.overlay.plain")
+        self._app = Gtk.Application(application_id="io.github.xevrion.xev_whisprflow.overlay.plain")
         self._app.connect("activate", self._activate)
         self._app.run(None)
 

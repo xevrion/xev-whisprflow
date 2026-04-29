@@ -1,5 +1,5 @@
 """
-voiceflow/main.py
+xev-whisprflow/main.py
 
 The async orchestrator — wires all components together.
 
@@ -32,20 +32,20 @@ class AppState(Enum):
     PROCESSING = auto()
 
 
-class VoiceFlowApp:
+class App:
     """Main application — ties together all subsystems."""
 
     def __init__(self):
-        from voiceflow.config import cfg, write_default_config
+        from xev_whisprflow.config import cfg, write_default_config
         write_default_config()
         self.cfg = cfg
 
         self._setup_logging()
 
-        from voiceflow.hotkey import HotkeyListener, HotkeyEvent
-        from voiceflow.audio import AudioCapture
-        from voiceflow.overlay import OverlayController, OverlayConfig
-        from voiceflow.injector import TextInjector
+        from xev_whisprflow.hotkey import HotkeyListener, HotkeyEvent
+        from xev_whisprflow.audio import AudioCapture
+        from xev_whisprflow.overlay import OverlayController, OverlayConfig
+        from xev_whisprflow.injector import TextInjector
 
         self._HotkeyEvent = HotkeyEvent
         self._state = AppState.IDLE
@@ -81,8 +81,8 @@ class VoiceFlowApp:
         self._amplitude_task: asyncio.Task | None = None
 
         # Dashboard & tray
-        from voiceflow.dashboard import DashboardServer
-        from voiceflow.tray import TrayIcon
+        from xev_whisprflow.dashboard import DashboardServer
+        from xev_whisprflow.tray import TrayIcon
 
         dashboard_port = 7878
         try:
@@ -124,7 +124,7 @@ class VoiceFlowApp:
         self._tray.start()
 
         # Start hotkey listener
-        from voiceflow.hotkey import HotkeyListener
+        from xev_whisprflow.hotkey import HotkeyListener
         self._hotkey = HotkeyListener(self.cfg.hotkey.key, self._loop)
         self._hotkey.start()
 
@@ -133,7 +133,7 @@ class VoiceFlowApp:
             self._loop.add_signal_handler(sig, self._shutdown)
 
         log.info(
-            "VoiceFlow ready. Hold %s to dictate. Press Ctrl+C to quit.",
+            "xev-whisprflow ready. Hold %s to dictate. Press Ctrl+C to quit.",
             self.cfg.hotkey.key,
         )
 
@@ -255,7 +255,7 @@ class VoiceFlowApp:
 
     async def _transcribe(self, audio_bytes: bytes) -> str:
         """Run STT on audio bytes, return transcript string."""
-        from voiceflow.stt import DeepgramSTT
+        from xev_whisprflow.stt import DeepgramSTT
 
         log.info("Sending audio to Deepgram...")
 
@@ -278,7 +278,7 @@ class VoiceFlowApp:
 
     async def _polish(self, raw_text: str) -> str:
         """Run LLM cleanup on raw transcript."""
-        from voiceflow.llm import polish_transcript
+        from xev_whisprflow.llm import polish_transcript
 
         if not self.cfg.groq_api_key:
             return raw_text
@@ -357,27 +357,23 @@ class VoiceFlowApp:
         self._overlay.stop()
         self._dashboard.stop()
         self._tray.stop()
-        log.info("VoiceFlow stopped.")
+        log.info("xev-whisprflow stopped.")
 
     def _print_banner(self) -> None:
         print(
-            "\n"
-            "  ╔══════════════════════════════════════╗\n"
-            "  ║  VoiceFlow — native Linux dictation  ║\n"
-            "  ╚══════════════════════════════════════╝\n"
-            f"  Hotkey : {self.cfg.hotkey.key}\n"
-            f"  STT    : Deepgram {self.cfg.stt.model} ({self.cfg.stt.language})\n"
-            f"  LLM    : Groq {self.cfg.llm.model}\n"
-            f"  Inject : {self.cfg.injector.method}\n"
-            f"  Config : {self.cfg.config_dir}/config.toml\n"
-            f"  History: {self.cfg.data_dir}/history.jsonl\n"
-            f"  Dashboard: http://localhost:7878\n"
+            "\n  xev-whisprflow\n"
+            f"  hotkey    {self.cfg.hotkey.key}\n"
+            f"  stt       Deepgram {self.cfg.stt.model} ({self.cfg.stt.language})\n"
+            f"  llm       Groq {self.cfg.llm.model}\n"
+            f"  inject    {self.cfg.injector.method}\n"
+            f"  config    {self.cfg.config_dir}/config.toml\n"
+            f"  dashboard http://localhost:7878\n"
         )
 
 
 def cli_entry() -> None:
-    """Entry point for `voiceflow` CLI command."""
-    app = VoiceFlowApp()
+    """Entry point for `xev-whisprflow` CLI command."""
+    app = App()
     asyncio.run(app.run())
 
 

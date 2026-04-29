@@ -1,203 +1,133 @@
 #!/usr/bin/env bash
-# VoiceFlow installer for Fedora Linux (Wayland)
-# Usage: bash install.sh
+# xev-whisprflow installer for Fedora/RHEL (Wayland)
+# Usage: bash <(curl -fsSL https://raw.githubusercontent.com/xevrion/xev-whisprflow/main/install.sh)
+#    or: git clone ... && cd xev-whisprflow && bash install.sh
 
 set -euo pipefail
 
-BOLD="\033[1m"
 GREEN="\033[0;32m"
 YELLOW="\033[0;33m"
 RED="\033[0;31m"
+BOLD="\033[1m"
 RESET="\033[0m"
 
-info()    { echo -e "${GREEN}[✓]${RESET} $*"; }
-warn()    { echo -e "${YELLOW}[!]${RESET} $*"; }
-error()   { echo -e "${RED}[✗]${RESET} $*"; exit 1; }
-section() { echo -e "\n${BOLD}$*${RESET}"; }
+ok()   { echo -e "${GREEN}ok${RESET}  $*"; }
+warn() { echo -e "${YELLOW}!${RESET}   $*"; }
+die()  { echo -e "${RED}err${RESET} $*"; exit 1; }
+step() { echo -e "\n${BOLD}$*${RESET}"; }
 
-# ── Preflight ────────────────────────────────────────────────────────────────
-
-section "VoiceFlow Installer"
-echo "  This will install VoiceFlow — native voice dictation for Linux."
+echo -e "${BOLD}xev-whisprflow${RESET} installer"
 echo ""
 
-# Must NOT be root
-[[ "$EUID" -eq 0 ]] && error "Don't run as root. Run as your normal user."
+[[ "$EUID" -eq 0 ]] && die "Run as your normal user, not root."
+command -v dnf &>/dev/null || warn "dnf not found — this script targets Fedora/RHEL. Adapt manually for other distros."
 
-# Detect Fedora
-if ! command -v dnf &>/dev/null; then
-    warn "dnf not found — this installer is designed for Fedora/RHEL."
-    warn "On Debian/Ubuntu, install equivalents manually (see CLAUDE.md)."
-fi
-
-# Detect Wayland
-if [[ "${XDG_SESSION_TYPE:-}" != "wayland" ]]; then
-    warn "XDG_SESSION_TYPE is not 'wayland' (got: ${XDG_SESSION_TYPE:-unset})"
-    warn "wtype requires Wayland. Continuing, but injection may not work on X11."
-fi
-
-# ── System packages ──────────────────────────────────────────────────────────
-
-section "Installing system packages..."
-
+# --- System packages ---
+step "Installing system packages"
 sudo dnf install -y \
-    python3 python3-pip python3-devel \
-    python3-gobject gtk4 \
-    gcc pkg-config \
-    pipewire pipewire-alsa portaudio portaudio-devel \
+    python3 python3-gobject gtk4 \
     wtype wl-clipboard \
-    libevdev libevdev-devel \
-    || warn "Some dnf packages may have failed — check output above."
+    pipewire pipewire-alsa portaudio portaudio-devel \
+    libevdev libevdev-devel gcc pkg-config \
+    || warn "Some packages may have failed — check above."
 
-# gtk4-layer-shell — may need to enable RPM Fusion or build from source
 if ! pkg-config --exists gtk4-layer-shell-0 2>/dev/null; then
-    warn "gtk4-layer-shell not found via pkg-config."
-    warn "Trying to install via dnf..."
-    sudo dnf install -y gtk4-layer-shell gtk4-layer-shell-devel 2>/dev/null || {
-        warn "gtk4-layer-shell not in default repos."
-        warn "The overlay may be disabled. VoiceFlow will still work without it."
-        warn "To enable overlay later: https://github.com/wmww/gtk4-layer-shell"
-    }
+    sudo dnf install -y gtk4-layer-shell gtk4-layer-shell-devel 2>/dev/null \
+        || warn "gtk4-layer-shell not found — overlay will work but won't float above all windows."
 fi
+ok "System packages"
 
-info "System packages done."
-
-# ── Input group ──────────────────────────────────────────────────────────────
-
-section "Configuring input device access..."
-
-if ! groups "$USER" | grep -q "\binput\b"; then
+# --- input group ---
+step "Input device access"
+if ! groups "$USER" | grep -q '\binput\b'; then
     sudo usermod -aG input "$USER"
-    warn "Added you to the 'input' group."
-    warn "You MUST log out and log back in for hotkey listening to work!"
+    warn "Added to 'input' group. Log out and back in before using the hotkey."
 else
-    info "Already in 'input' group."
+    ok "Already in 'input' group"
 fi
 
-# ── Python venv ──────────────────────────────────────────────────────────────
-
-section "Setting up Python virtual environment..."
-
-INSTALL_DIR="$HOME/.local/share/voiceflow"
-mkdir -p "$INSTALL_DIR"
-VENV="$INSTALL_DIR/venv"
-
-if [[ ! -d "$VENV" ]]; then
-    python3 -m venv "$VENV"
-    info "Created venv at $VENV"
-else
-    info "Existing venv found at $VENV"
+# --- uv ---
+step "Checking uv"
+if ! command -v uv &>/dev/null; then
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.local/bin:$PATH"
 fi
+ok "uv $(uv --version 2>/dev/null | head -1)"
 
-"$VENV/bin/pip" install --upgrade pip --quiet
-"$VENV/bin/pip" install \
-    evdev \
-    sounddevice \
-    numpy \
-    deepgram-sdk \
-    groq \
-    toml \
-    python-dotenv \
-    PyGObject \
-    websockets \
-    httpx \
-    || error "pip install failed"
-
-info "Python dependencies installed."
-
-# ── Copy project files ───────────────────────────────────────────────────────
-
-section "Installing VoiceFlow..."
-
+# --- Source directory ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_DIR="$HOME/.local/share/xev-whisprflow"
+mkdir -p "$INSTALL_DIR"
 
-# Install the package into the venv
-"$VENV/bin/pip" install -e "$SCRIPT_DIR" --quiet || {
-    # Fallback: copy files manually
-    cp -r "$SCRIPT_DIR/voiceflow" "$INSTALL_DIR/"
-    info "Copied voiceflow package to $INSTALL_DIR"
-}
-
-info "VoiceFlow installed."
-
-# ── Config directory ─────────────────────────────────────────────────────────
-
-section "Setting up config..."
-
-CONFIG_DIR="$HOME/.config/voiceflow"
-mkdir -p "$CONFIG_DIR"
-
-# Copy .env.example if no .env exists
-if [[ ! -f "$CONFIG_DIR/.env" ]]; then
-    if [[ -f "$SCRIPT_DIR/.env.example" ]]; then
-        cp "$SCRIPT_DIR/.env.example" "$CONFIG_DIR/.env"
-        info "Created $CONFIG_DIR/.env from .env.example"
-    fi
+# If run via curl (no pyproject.toml in script dir), clone the repo
+if [[ ! -f "$SCRIPT_DIR/pyproject.toml" ]]; then
+    step "Cloning repo"
+    git clone https://github.com/xevrion/xev-whisprflow.git "$INSTALL_DIR/src"
+    SCRIPT_DIR="$INSTALL_DIR/src"
+    ok "Cloned to $INSTALL_DIR/src"
 fi
 
-# Prompt for API keys if not already set
+# --- Python venv ---
+step "Setting up Python environment"
+VENV="$INSTALL_DIR/venv"
+uv venv --system-site-packages --python /usr/bin/python3 "$VENV" 2>/dev/null \
+    || uv venv --system-site-packages "$VENV"
+uv pip install --python "$VENV/bin/python" -e "$SCRIPT_DIR" 2>/dev/null \
+    || uv pip install --python "$VENV/bin/python" --no-build-isolation -e "$SCRIPT_DIR"
+ok "Dependencies installed"
+
+# --- Symlink CLI ---
+step "Installing CLI"
+BIN="$HOME/.local/bin"
+mkdir -p "$BIN"
+ln -sf "$VENV/bin/xev-whisprflow" "$BIN/xev-whisprflow"
+if ! echo "$PATH" | grep -q "$BIN"; then
+    warn "$BIN not in PATH. Add to your shell config: export PATH=\"\$HOME/.local/bin:\$PATH\""
+fi
+ok "xev-whisprflow command linked"
+
+# --- Config ---
+step "Setting up config"
+CONFIG_DIR="$HOME/.config/xev-whisprflow"
+mkdir -p "$CONFIG_DIR"
 ENV_FILE="$CONFIG_DIR/.env"
 
-if ! grep -q "DEEPGRAM_API_KEY=your_" "$ENV_FILE" 2>/dev/null && grep -q "DEEPGRAM_API_KEY=" "$ENV_FILE" 2>/dev/null; then
-    info "Deepgram API key already configured."
-else
+[[ ! -f "$ENV_FILE" ]] && cp "$SCRIPT_DIR/.env.example" "$ENV_FILE"
+
+if grep -q "your_deepgram_api_key_here" "$ENV_FILE"; then
     echo ""
-    echo -n "  Enter your Deepgram API key (get free at deepgram.com): "
+    echo -n "  Deepgram API key (free at deepgram.com, Enter to skip): "
     read -r DG_KEY
-    if [[ -n "$DG_KEY" ]]; then
-        sed -i "s|DEEPGRAM_API_KEY=.*|DEEPGRAM_API_KEY=$DG_KEY|" "$ENV_FILE"
-        info "Deepgram key saved."
-    else
-        warn "No key entered — edit $ENV_FILE manually before starting."
-    fi
+    [[ -n "$DG_KEY" ]] && sed -i "s|DEEPGRAM_API_KEY=.*|DEEPGRAM_API_KEY=$DG_KEY|" "$ENV_FILE"
 fi
 
-if ! grep -q "GROQ_API_KEY=your_" "$ENV_FILE" 2>/dev/null && grep -q "GROQ_API_KEY=" "$ENV_FILE" 2>/dev/null; then
-    info "Groq API key already configured."
-else
-    echo ""
-    echo -n "  Enter your Groq API key (get free at console.groq.com): "
+if grep -q "your_groq_api_key_here" "$ENV_FILE"; then
+    echo -n "  Groq API key (free at console.groq.com, Enter to skip): "
     read -r GROQ_KEY
-    if [[ -n "$GROQ_KEY" ]]; then
-        sed -i "s|GROQ_API_KEY=.*|GROQ_API_KEY=$GROQ_KEY|" "$ENV_FILE"
-        info "Groq key saved."
-    else
-        warn "No key entered — edit $ENV_FILE manually before starting."
-    fi
+    [[ -n "$GROQ_KEY" ]] && sed -i "s|GROQ_API_KEY=.*|GROQ_API_KEY=$GROQ_KEY|" "$ENV_FILE"
 fi
+ok "Config at $CONFIG_DIR"
 
-# Patch systemd unit to use our venv python
-UNIT_SRC="$SCRIPT_DIR/systemd/voiceflow.service"
-UNIT_DST="$HOME/.config/systemd/user/voiceflow.service"
-mkdir -p "$HOME/.config/systemd/user"
-sed "s|%h/.local/share/voiceflow/venv/bin/python|$VENV/bin/python|g" \
-    "$UNIT_SRC" > "$UNIT_DST"
-
-# ── Systemd service ──────────────────────────────────────────────────────────
-
-section "Installing systemd user service..."
-
+# --- Systemd service ---
+step "Installing systemd service"
+SYSTEMD_DIR="$HOME/.config/systemd/user"
+mkdir -p "$SYSTEMD_DIR"
+sed "s|%h/.local/share/xev-whisprflow/venv/bin/xev-whisprflow|$VENV/bin/xev-whisprflow|g" \
+    "$SCRIPT_DIR/systemd/xev-whisprflow.service" > "$SYSTEMD_DIR/xev-whisprflow.service"
 systemctl --user daemon-reload
-systemctl --user enable voiceflow.service
-info "Service enabled. It will start automatically on next login."
+systemctl --user enable xev-whisprflow.service
+ok "Service installed and enabled"
 
+# --- Done ---
 echo ""
-echo -e "${BOLD}Installation complete!${RESET}"
+echo -e "${BOLD}Done.${RESET}"
 echo ""
-echo "  To start right now:"
-echo "    systemctl --user start voiceflow"
-echo ""
-echo "  To check status:"
-echo "    systemctl --user status voiceflow"
-echo ""
-echo "  To view logs:"
-echo "    journalctl --user -u voiceflow -f"
+echo "  Start now:      xev-whisprflow"
+echo "  Start service:  systemctl --user start xev-whisprflow"
+echo "  Dashboard:      http://localhost:7878"
+echo "  Logs:           journalctl --user -u xev-whisprflow -f"
 echo ""
 echo "  Default hotkey: hold Right Alt to dictate."
-echo "  Edit hotkey in: $CONFIG_DIR/config.toml"
+echo "  Edit config:    $CONFIG_DIR/config.toml"
 echo ""
-
-if groups "$USER" | grep -qv "\binput\b"; then
-    echo -e "${YELLOW}  ⚠ IMPORTANT: Log out and log back in for hotkey access!${RESET}"
-    echo ""
-fi
+groups "$USER" | grep -q '\binput\b' || echo -e "${YELLOW}  Log out and back in for the hotkey to work.${RESET}\n"

@@ -1,4 +1,4 @@
-# VoiceFlow
+# xev-whisprflow
 
 Push-to-talk voice dictation for Linux. Hold a key, speak, release, and polished text appears wherever your cursor is.
 
@@ -8,43 +8,73 @@ Built for Wayland. Tested on Fedora with Hyprland.
 hold Right Alt -> speak -> release -> text injected
 ```
 
+## Install
+
+One command:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/xevrion/xev-whisprflow/main/install.sh)
+```
+
+Or clone and run:
+
+```bash
+git clone https://github.com/xevrion/xev-whisprflow.git
+cd xev-whisprflow
+bash install.sh
+```
+
+The installer handles system packages, the Python venv, the CLI symlink, API key setup, and the systemd service.
+
+You'll need free API keys from [Deepgram](https://deepgram.com) and [Groq](https://console.groq.com) — the installer will ask for them.
+
+## Usage
+
+```bash
+xev-whisprflow          # run in foreground
+```
+
+Or as a background service that starts on login:
+
+```bash
+systemctl --user start xev-whisprflow
+journalctl --user -u xev-whisprflow -f
+```
+
+Dashboard at `http://localhost:7878` while the app is running.
+
 ## How it works
 
-1. **Hotkey** (evdev) detects the key press globally, no matter what's focused
-2. **Mic** opens and starts recording (PipeWire via ALSA compat)
+1. **Hotkey** (evdev) detects the key globally, regardless of what's focused
+2. **Mic** opens and starts recording via PipeWire
 3. **Glowing border** appears around the screen while recording
-4. On release, audio is sent to **Deepgram** (nova-3) for transcription
-5. Raw transcript is cleaned up by **Groq** (llama-3.1-8b-instant)
+4. On release, audio goes to **Deepgram** nova-3 for transcription
+5. Raw transcript is cleaned up by **Groq** llama-3.1-8b-instant
 6. Polished text is typed at your cursor via **wtype**
 
 ## Requirements
 
 - Wayland compositor (Hyprland, Sway, GNOME, etc.)
-- Fedora/RHEL (or adapt the install script)
-- Python 3.11+
-- [uv](https://github.com/astral-sh/uv)
+- Fedora/RHEL — adapt `install.sh` for other distros
 - Free API keys: [Deepgram](https://deepgram.com) and [Groq](https://console.groq.com)
 
-## Install
+## Config
 
-```bash
-# System deps
-sudo dnf install gtk4 python3-gobject wtype wl-clipboard pipewire pipewire-alsa portaudio-devel
+Config lives at `~/.config/xev-whisprflow/config.toml`, created on first run.
 
-# Add yourself to the input group (needed for global hotkey)
-sudo usermod -aG input $USER
-# Log out and back in after this
+```toml
+[hotkey]
+key = "KEY_RIGHTALT"
 
-# Clone and set up
-git clone <repo>
-cd xev-whisprflow
-uv venv --system-site-packages --python /usr/bin/python3
-uv pip install -e .
+[audio]
+device = "Chu2 DSP Mono"   # omit for system default
+sample_rate = 48000
 
-# API keys
-cp .env.example .env
-# Edit .env and add your keys
+[overlay]
+color = "#7C3AED"
 ```
+
+Settings can also be changed from the dashboard at `http://localhost:7878`.
 
 ## Hyprland
 
@@ -57,61 +87,12 @@ windowrulev2 = noblur, title:voiceflow-overlay
 windowrulev2 = pin, title:voiceflow-overlay
 ```
 
-## Run
-
-```bash
-.venv/bin/python -m voiceflow.main
-```
-
-Or as a systemd user service:
-
-```bash
-systemctl --user enable --now voiceflow
-```
-
-## Config
-
-Config is at `~/.config/voiceflow/config.toml`, created automatically on first run with all defaults documented inside.
-
-Key options:
-
-```toml
-[hotkey]
-key = "KEY_RIGHTALT"   # any evdev key name
-
-[audio]
-device = "Chu2 DSP Mono"   # pin to a specific mic; omit for system default
-sample_rate = 48000
-
-[overlay]
-color = "#7C3AED"   # border glow color
-```
-
-Run `python -m voiceflow.hotkey --list` to see all valid key names.
-
-## Picking a mic
-
-```bash
-.venv/bin/python -m voiceflow.audio --list
-```
-
-Set the device name in `config.toml` under `[audio]`. Match the sample rate to what your mic supports (usually 16000 or 48000).
-
-## API keys
-
-Both have free tiers with generous limits:
-
-- `DEEPGRAM_API_KEY` from [deepgram.com](https://deepgram.com), free tier includes 200hrs/month
-- `GROQ_API_KEY` from [console.groq.com](https://console.groq.com), free tier with high rate limits
-
-Put them in `.env` in the project root (already gitignored).
-
 ## Troubleshooting
 
-**Hotkey does nothing:** you're probably not in the `input` group yet. Run `id | grep input` to check. If missing, run the usermod command above and fully log out/in (not just a new terminal).
+**Hotkey does nothing:** check `id | grep input`. If the `input` group is missing, run `sudo usermod -aG input $USER` and fully log out/in.
 
-**Wrong mic:** run the audio list command above and set `device` in config.
+**Wrong mic:** open the dashboard settings or set `device` in config. Run `xev-whisprflow --list-devices` equivalent via `python -m xev_whisprflow.audio --list`.
 
-**Overlay covers screen on non-Hyprland:** add the equivalent window rules for your compositor, or skip it (the overlay is cosmetic).
+**Overlay covers screen:** add the Hyprland window rules above, or the equivalent for your compositor.
 
-**gtk4-layer-shell warning at startup:** the overlay works without it, just won't float above all windows. Install a GTK4-compatible build of gtk4-layer-shell to fix.
+**gtk4-layer-shell warning:** the overlay works without it but won't float above all windows. Install a GTK4-compatible build to fix.

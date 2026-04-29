@@ -20,8 +20,8 @@ from typing import Any
 log = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).parent / "static"
-HISTORY_FILE = Path.home() / ".local" / "share" / "voiceflow" / "history.jsonl"
-CONFIG_FILE = Path.home() / ".config" / "voiceflow" / "config.toml"
+HISTORY_FILE = Path.home() / ".local" / "share" / "xev-whisprflow" / "history.jsonl"
+CONFIG_FILE = Path.home() / ".config" / "xev-whisprflow" / "config.toml"
 _STRIP_KEYS = {"deepgram_api_key", "groq_api_key"}
 
 
@@ -158,7 +158,7 @@ class DashboardServer:
                 return JSONResponse({"error": "invalid action"}, status_code=400)
             try:
                 r = subprocess.run(
-                    ["systemctl", "--user", action, "voiceflow.service"],
+                    ["systemctl", "--user", action, "xev_whisprflow.service"],
                     capture_output=True, text=True, timeout=10,
                 )
                 return {"ok": r.returncode == 0, "output": r.stdout + r.stderr}

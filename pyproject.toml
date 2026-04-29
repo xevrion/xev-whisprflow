@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "voiceflow"
+name = "xev-whisprflow"
 version = "0.1.0"
-description = "Native Linux voice dictation daemon — Wispr Flow for Linux"
+description = "Push-to-talk voice dictation for Linux"
 requires-python = ">=3.11"
 dependencies = [
     "evdev>=1.6.1",
@@ -26,8 +26,8 @@ dependencies = [
 ]
 
 [project.scripts]
-voiceflow = "voiceflow.main:cli_entry"
+xev-whisprflow = "xev_whisprflow.main:cli_entry"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["voiceflow*"]
+include = ["xev_whisprflow*"]
