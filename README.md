@@ -54,8 +54,7 @@ Dashboard at `http://localhost:7878` while the app is running.
 
 ## Requirements
 
-- Wayland compositor (Hyprland, Sway, GNOME, etc.)
-- Fedora/RHEL — adapt `install.sh` for other distros
+- Linux (Fedora, Ubuntu/Debian, Arch — Wayland or X11)
 - Free API keys: [Deepgram](https://deepgram.com) and [Groq](https://console.groq.com)
 
 ## Config
@@ -96,3 +95,7 @@ windowrulev2 = pin, title:voiceflow-overlay
 **Overlay covers screen:** add the Hyprland window rules above, or the equivalent for your compositor.
 
 **gtk4-layer-shell warning:** the overlay works without it but won't float above all windows. Install a GTK4-compatible build to fix.
+
+**X11 users:** text injection uses `xdotool` automatically. Install it if not present (`xdotool` package on all distros). Clipboard fallback uses `xclip`.
+
+**Ubuntu/Debian:** the installer uses `apt`. Arch: `pacman`. The installer auto-detects your distro.

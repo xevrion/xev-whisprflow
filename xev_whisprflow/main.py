@@ -331,15 +331,18 @@ class App:
             log.debug("Failed to save history: %s", e)
 
     def _check_deps(self) -> None:
-        """Warn about missing dependencies at startup."""
-        import shutil
-        deps = {
-            "wtype": "sudo dnf install wtype",
-            "wl-copy": "sudo dnf install wl-clipboard",
-        }
-        for cmd, install in deps.items():
-            if not shutil.which(cmd):
-                log.warning("Missing: %s  →  %s", cmd, install)
+        import shutil, os
+        wayland = bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("XDG_SESSION_TYPE") == "wayland")
+        if wayland:
+            if not shutil.which("wtype"):
+                log.warning("wtype not found (Wayland injection). Install: wtype")
+            if not shutil.which("wl-copy"):
+                log.warning("wl-copy not found (clipboard fallback). Install: wl-clipboard")
+        else:
+            if not shutil.which("xdotool"):
+                log.warning("xdotool not found (X11 injection). Install: xdotool")
+            if not shutil.which("xclip") and not shutil.which("xsel"):
+                log.warning("xclip/xsel not found (clipboard fallback). Install: xclip")
 
     def _shutdown(self) -> None:
         log.info("Shutting down...")

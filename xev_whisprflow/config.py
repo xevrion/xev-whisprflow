@@ -76,7 +76,7 @@ class LLMConfig:
 
 @dataclass
 class InjectorConfig:
-    method: str = "wtype"        # "wtype" | "xdotool" (auto-detected)
+    method: str = "auto"         # "auto" | "wtype" (Wayland) | "xdotool" (X11)
     clipboard_fallback: bool = True
     delay_ms: int = 50           # small delay before typing (let focus settle)
 
@@ -205,7 +205,7 @@ model = "llama-3.1-8b-instant"
 temperature = 0.1
 
 [injector]
-method = "wtype"         # "wtype" for Wayland, "xdotool" for X11
+method = "auto"          # "auto" detects Wayland/X11; or force "wtype" / "xdotool"
 clipboard_fallback = true
 delay_ms = 50
 """
