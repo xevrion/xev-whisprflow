@@ -1,11 +1,11 @@
 # VoiceFlow
 
-Push-to-talk voice dictation for Linux. Hold a key, speak, release — polished text appears wherever your cursor is.
+Push-to-talk voice dictation for Linux. Hold a key, speak, release, and polished text appears wherever your cursor is.
 
 Built for Wayland. Tested on Fedora with Hyprland.
 
 ```
-hold Right Alt → speak → release → text injected
+hold Right Alt -> speak -> release -> text injected
 ```
 
 ## How it works
@@ -23,7 +23,7 @@ hold Right Alt → speak → release → text injected
 - Fedora/RHEL (or adapt the install script)
 - Python 3.11+
 - [uv](https://github.com/astral-sh/uv)
-- Free API keys: [Deepgram](https://deepgram.com) · [Groq](https://console.groq.com)
+- Free API keys: [Deepgram](https://deepgram.com) and [Groq](https://console.groq.com)
 
 ## Install
 
@@ -63,7 +63,7 @@ windowrulev2 = pin, title:voiceflow-overlay
 .venv/bin/python -m voiceflow.main
 ```
 
-Or install as a systemd user service:
+Or as a systemd user service:
 
 ```bash
 systemctl --user enable --now voiceflow
@@ -71,7 +71,7 @@ systemctl --user enable --now voiceflow
 
 ## Config
 
-Config lives at `~/.config/voiceflow/config.toml` — created automatically on first run with all defaults documented inside.
+Config is at `~/.config/voiceflow/config.toml`, created automatically on first run with all defaults documented inside.
 
 Key options:
 
@@ -99,19 +99,19 @@ Set the device name in `config.toml` under `[audio]`. Match the sample rate to w
 
 ## API keys
 
-Both are free tiers with generous limits:
+Both have free tiers with generous limits:
 
-- `DEEPGRAM_API_KEY` — [deepgram.com](https://deepgram.com), free tier includes 200hrs/month
-- `GROQ_API_KEY` — [console.groq.com](https://console.groq.com), free tier with high rate limits
+- `DEEPGRAM_API_KEY` from [deepgram.com](https://deepgram.com), free tier includes 200hrs/month
+- `GROQ_API_KEY` from [console.groq.com](https://console.groq.com), free tier with high rate limits
 
 Put them in `.env` in the project root (already gitignored).
 
 ## Troubleshooting
 
-**Hotkey does nothing** — you're not in the `input` group yet, or the group change hasn't taken effect. Run `id | grep input`. If missing, run the usermod command above and fully log out/in (not just a new terminal).
+**Hotkey does nothing:** you're probably not in the `input` group yet. Run `id | grep input` to check. If missing, run the usermod command above and fully log out/in (not just a new terminal).
 
-**Wrong mic** — run the audio list command above and set `device` in config.
+**Wrong mic:** run the audio list command above and set `device` in config.
 
-**Overlay covers screen on non-Hyprland** — add the equivalent window rules for your compositor, or ignore it (the overlay is cosmetic).
+**Overlay covers screen on non-Hyprland:** add the equivalent window rules for your compositor, or skip it (the overlay is cosmetic).
 
-**gtk4-layer-shell warning at startup** — the overlay works without it, just won't be above all windows. Install a GTK4-compatible build of gtk4-layer-shell to fix.
+**gtk4-layer-shell warning at startup:** the overlay works without it, just won't float above all windows. Install a GTK4-compatible build of gtk4-layer-shell to fix.
