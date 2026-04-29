@@ -1,0 +1,318 @@
+"""
+voiceflow/main.py
+
+The async orchestrator — wires all components together.
+
+State machine:
+    IDLE → (hotkey press) → RECORDING → (hotkey release) →
+    PROCESSING → (inject done) → IDLE
+
+Everything runs in one asyncio event loop.
+GTK overlay runs in a separate thread (GTK must own its thread).
+Hotkey listener runs in a separate thread (evdev is blocking).
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import signal
+import sys
+from enum import Enum, auto
+from pathlib import Path
+
+log = logging.getLogger(__name__)
+
+
+class AppState(Enum):
+    IDLE = auto()
+    RECORDING = auto()
+    PROCESSING = auto()
+
+
+class VoiceFlowApp:
+    """Main application — ties together all subsystems."""
+
+    def __init__(self):
+        from voiceflow.config import cfg, write_default_config
+        write_default_config()
+        self.cfg = cfg
+
+        self._setup_logging()
+
+        from voiceflow.hotkey import HotkeyListener, HotkeyEvent
+        from voiceflow.audio import AudioCapture
+        from voiceflow.overlay import OverlayController, OverlayConfig
+        from voiceflow.injector import TextInjector
+
+        self._HotkeyEvent = HotkeyEvent
+        self._state = AppState.IDLE
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+        # Subsystems
+        self._audio = AudioCapture(
+            sample_rate=cfg.audio.sample_rate,
+            channels=cfg.audio.channels,
+            chunk_ms=cfg.audio.chunk_ms,
+            device=cfg.audio.device,
+        )
+
+        self._overlay = OverlayController(
+            OverlayConfig(
+                color=cfg.overlay.color,
+                width=cfg.overlay.width,
+                fade_in_ms=cfg.overlay.fade_in_ms,
+                fade_out_ms=cfg.overlay.fade_out_ms,
+                glow_blur=cfg.overlay.glow_blur,
+                min_alpha=cfg.overlay.min_alpha,
+                max_alpha=cfg.overlay.max_alpha,
+            )
+        )
+
+        self._injector = TextInjector(
+            method=cfg.injector.method,
+            clipboard_fallback=cfg.injector.clipboard_fallback,
+            delay_ms=cfg.injector.delay_ms,
+        )
+
+        self._hotkey: "HotkeyListener | None" = None
+        self._amplitude_task: asyncio.Task | None = None
+
+    def _setup_logging(self) -> None:
+        level = getattr(logging, self.cfg.log_level.upper(), logging.INFO)
+        logging.basicConfig(
+            level=level,
+            format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+            datefmt="%H:%M:%S",
+            stream=sys.stderr,
+        )
+        # Quiet noisy third-party loggers
+        for noisy in ("httpx", "httpcore", "websockets", "urllib3"):
+            logging.getLogger(noisy).setLevel(logging.WARNING)
+
+    async def run(self) -> None:
+        self._loop = asyncio.get_running_loop()
+
+        # Print startup banner
+        self._print_banner()
+
+        # Check dependencies
+        self._check_deps()
+
+        # Start overlay (GTK in background thread)
+        self._overlay.start()
+
+        # Start hotkey listener
+        from voiceflow.hotkey import HotkeyListener
+        self._hotkey = HotkeyListener(self.cfg.hotkey.key, self._loop)
+        self._hotkey.start()
+
+        # Handle Ctrl+C / SIGTERM gracefully
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            self._loop.add_signal_handler(sig, self._shutdown)
+
+        log.info(
+            "VoiceFlow ready. Hold %s to dictate. Press Ctrl+C to quit.",
+            self.cfg.hotkey.key,
+        )
+
+        try:
+            await self._event_loop()
+        except asyncio.CancelledError:
+            pass
+        finally:
+            await self._cleanup()
+
+    async def _event_loop(self) -> None:
+        """Main event loop — process hotkey events."""
+        while True:
+            event = await self._hotkey.queue.get()
+
+            if event == self._HotkeyEvent.PRESSED:
+                if self._state == AppState.IDLE:
+                    await self._on_press()
+
+            elif event == self._HotkeyEvent.RELEASED:
+                if self._state == AppState.RECORDING:
+                    await self._on_release()
+
+    async def _on_press(self) -> None:
+        """Hotkey pressed — start recording."""
+        log.debug("Hotkey pressed → start recording")
+        self._state = AppState.RECORDING
+
+        self._overlay.show()
+        self._audio.start_recording(self._loop)
+
+        # Start amplitude update task for overlay animation
+        self._amplitude_task = asyncio.create_task(self._update_amplitude())
+
+    async def _on_release(self) -> None:
+        """Hotkey released — stop recording, process, inject."""
+        log.debug("Hotkey released → processing")
+        self._state = AppState.PROCESSING
+
+        # Stop audio capture
+        self._audio.stop_recording()
+
+        # Cancel amplitude task
+        if self._amplitude_task:
+            self._amplitude_task.cancel()
+            self._amplitude_task = None
+        self._overlay.set_amplitude(0.0)
+
+        # Collect all audio
+        audio_chunks = []
+        async for chunk in self._audio.audio_chunks():
+            audio_chunks.append(chunk)
+
+        if not audio_chunks:
+            log.warning("No audio captured — ignoring")
+            self._overlay.hide()
+            self._state = AppState.IDLE
+            return
+
+        import numpy as np
+        audio_bytes = np.concatenate(audio_chunks).tobytes()
+        duration = len(audio_bytes) / (self.cfg.audio.sample_rate * 2)
+        log.info("Captured %.2fs of audio (%d bytes)", duration, len(audio_bytes))
+
+        if duration < 0.3:
+            log.warning("Audio too short (<0.3s) — ignoring")
+            self._overlay.hide()
+            self._state = AppState.IDLE
+            return
+
+        # Run STT + LLM concurrently-ish (STT must finish before LLM)
+        try:
+            transcript = await self._transcribe(audio_bytes)
+            if transcript:
+                polished = await self._polish(transcript)
+                await self._inject(polished)
+            else:
+                log.warning("Empty transcript — nothing to inject")
+                self._overlay.flash_error()
+        except Exception as e:
+            log.error("Processing pipeline error: %s", e, exc_info=True)
+            self._overlay.flash_error()
+        finally:
+            self._overlay.hide()
+            self._state = AppState.IDLE
+            # Save to history
+            if "transcript" in dir() and transcript:  # type: ignore[has-type]
+                self._save_history(transcript, polished if "polished" in dir() else transcript)  # type: ignore[has-type]
+
+    async def _transcribe(self, audio_bytes: bytes) -> str:
+        """Run STT on audio bytes, return transcript string."""
+        from voiceflow.stt import DeepgramSTT
+
+        log.info("Sending audio to Deepgram...")
+
+        stt = DeepgramSTT(
+            api_key=self.cfg.deepgram_api_key,
+            model=self.cfg.stt.model,
+            language=self.cfg.stt.language,
+            sample_rate=self.cfg.audio.sample_rate,
+            channels=self.cfg.audio.channels,
+            endpointing_ms=self.cfg.stt.endpointing_ms,
+        )
+
+        async with stt:
+            # Send audio in chunks
+            chunk_size = self.cfg.audio.sample_rate * 2 // 10  # 100ms
+            for i in range(0, len(audio_bytes), chunk_size):
+                await stt.send_audio(audio_bytes[i : i + chunk_size])
+                await asyncio.sleep(0.005)
+            return await stt.finalize()
+
+    async def _polish(self, raw_text: str) -> str:
+        """Run LLM cleanup on raw transcript."""
+        from voiceflow.llm import polish_transcript
+
+        if not self.cfg.groq_api_key:
+            return raw_text
+
+        log.info("Polishing transcript with Groq...")
+        return await polish_transcript(
+            raw_text,
+            api_key=self.cfg.groq_api_key,
+            model=self.cfg.llm.model,
+            temperature=self.cfg.llm.temperature,
+            max_tokens=self.cfg.llm.max_tokens,
+        )
+
+    async def _inject(self, text: str) -> None:
+        """Type text at cursor."""
+        log.info("Injecting: %r", text[:80])
+        await self._injector.type_text(text)
+
+    async def _update_amplitude(self) -> None:
+        """Continuously poll audio amplitude and update overlay."""
+        while self._state == AppState.RECORDING:
+            self._overlay.set_amplitude(self._audio.amplitude)
+            await asyncio.sleep(0.033)  # ~30fps update
+
+    def _save_history(self, raw: str, polished: str) -> None:
+        """Append session to local history file."""
+        import datetime
+        history_file = self.cfg.data_dir / "history.jsonl"
+        try:
+            import json
+            entry = {
+                "ts": datetime.datetime.now().isoformat(),
+                "raw": raw,
+                "polished": polished,
+            }
+            with open(history_file, "a") as f:
+                f.write(json.dumps(entry) + "\n")
+        except Exception as e:
+            log.debug("Failed to save history: %s", e)
+
+    def _check_deps(self) -> None:
+        """Warn about missing dependencies at startup."""
+        import shutil
+        deps = {
+            "wtype": "sudo dnf install wtype",
+            "wl-copy": "sudo dnf install wl-clipboard",
+        }
+        for cmd, install in deps.items():
+            if not shutil.which(cmd):
+                log.warning("Missing: %s  →  %s", cmd, install)
+
+    def _shutdown(self) -> None:
+        log.info("Shutting down...")
+        self._overlay.stop()
+        if self._loop:
+            for task in asyncio.all_tasks(self._loop):
+                task.cancel()
+
+    async def _cleanup(self) -> None:
+        if self._hotkey:
+            self._hotkey.stop()
+        if self._audio.is_recording:
+            self._audio.stop_recording()
+        self._overlay.stop()
+        log.info("VoiceFlow stopped.")
+
+    def _print_banner(self) -> None:
+        print(
+            "\n"
+            "  ╔══════════════════════════════════════╗\n"
+            "  ║  VoiceFlow — native Linux dictation  ║\n"
+            "  ╚══════════════════════════════════════╝\n"
+            f"  Hotkey : {self.cfg.hotkey.key}\n"
+            f"  STT    : Deepgram {self.cfg.stt.model} ({self.cfg.stt.language})\n"
+            f"  LLM    : Groq {self.cfg.llm.model}\n"
+            f"  Inject : {self.cfg.injector.method}\n"
+            f"  Config : {self.cfg.config_dir}/config.toml\n"
+            f"  History: {self.cfg.data_dir}/history.jsonl\n"
+        )
+
+
+def cli_entry() -> None:
+    """Entry point for `voiceflow` CLI command."""
+    app = VoiceFlowApp()
+    asyncio.run(app.run())
+
+
+if __name__ == "__main__":
+    cli_entry()

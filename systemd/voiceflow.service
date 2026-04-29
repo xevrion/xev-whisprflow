@@ -1,0 +1,30 @@
+[Unit]
+Description=VoiceFlow — native Linux voice dictation daemon
+Documentation=https://github.com/yourname/voiceflow
+After=graphical-session.target pipewire.service
+Wants=pipewire.service
+
+[Service]
+Type=simple
+# Use the virtualenv python if installed via venv, else system python
+ExecStart=%h/.local/share/voiceflow/venv/bin/python -m voiceflow.main
+WorkingDirectory=%h/.local/share/voiceflow
+Restart=on-failure
+RestartSec=3s
+
+# Environment — source API keys from the .env file
+EnvironmentFile=-%h/.config/voiceflow/.env
+
+# Wayland session passthrough (required for overlay + wtype)
+Environment=WAYLAND_DISPLAY=%E{WAYLAND_DISPLAY}
+Environment=XDG_RUNTIME_DIR=%E{XDG_RUNTIME_DIR}
+Environment=DBUS_SESSION_BUS_ADDRESS=%E{DBUS_SESSION_BUS_ADDRESS}
+Environment=DISPLAY=%E{DISPLAY}
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=voiceflow
+
+[Install]
+WantedBy=graphical-session.target
