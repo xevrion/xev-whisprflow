@@ -10,10 +10,13 @@ State machine:
 Everything runs in one asyncio event loop.
 GTK overlay runs in a separate thread (GTK must own its thread).
 Hotkey listener runs in a separate thread (evdev is blocking).
+Dashboard runs in a background thread (uvicorn).
+Tray icon runs in a daemon thread.
 """
 from __future__ import annotations
 
 import asyncio
+import datetime
 import logging
 import signal
 import sys
@@ -77,6 +80,19 @@ class VoiceFlowApp:
         self._hotkey: "HotkeyListener | None" = None
         self._amplitude_task: asyncio.Task | None = None
 
+        # Dashboard & tray
+        from voiceflow.dashboard import DashboardServer
+        from voiceflow.tray import TrayIcon
+
+        dashboard_port = 7878
+        try:
+            dashboard_port = cfg.dashboard.port  # type: ignore[attr-defined]
+        except AttributeError:
+            pass
+
+        self._dashboard = DashboardServer(port=dashboard_port)
+        self._tray = TrayIcon(on_quit=self._shutdown)
+
     def _setup_logging(self) -> None:
         level = getattr(logging, self.cfg.log_level.upper(), logging.INFO)
         logging.basicConfig(
@@ -86,7 +102,7 @@ class VoiceFlowApp:
             stream=sys.stderr,
         )
         # Quiet noisy third-party loggers
-        for noisy in ("httpx", "httpcore", "websockets", "urllib3"):
+        for noisy in ("httpx", "httpcore", "websockets", "urllib3", "uvicorn"):
             logging.getLogger(noisy).setLevel(logging.WARNING)
 
     async def run(self) -> None:
@@ -101,6 +117,12 @@ class VoiceFlowApp:
         # Start overlay (GTK in background thread)
         self._overlay.start()
 
+        # Start dashboard server
+        self._dashboard.start(self._loop)
+
+        # Start tray icon
+        self._tray.start()
+
         # Start hotkey listener
         from voiceflow.hotkey import HotkeyListener
         self._hotkey = HotkeyListener(self.cfg.hotkey.key, self._loop)
@@ -114,6 +136,9 @@ class VoiceFlowApp:
             "VoiceFlow ready. Hold %s to dictate. Press Ctrl+C to quit.",
             self.cfg.hotkey.key,
         )
+
+        # Broadcast initial idle status
+        await self._broadcast_status()
 
         try:
             await self._event_loop()
@@ -139,9 +164,13 @@ class VoiceFlowApp:
         """Hotkey pressed — start recording."""
         log.debug("Hotkey pressed → start recording")
         self._state = AppState.RECORDING
+        self._tray.set_state("recording")
 
         self._overlay.show()
         self._audio.start_recording(self._loop)
+
+        # Broadcast recording state
+        await self._broadcast_status()
 
         # Start amplitude update task for overlay animation
         self._amplitude_task = asyncio.create_task(self._update_amplitude())
@@ -150,6 +179,7 @@ class VoiceFlowApp:
         """Hotkey released — stop recording, process, inject."""
         log.debug("Hotkey released → processing")
         self._state = AppState.PROCESSING
+        self._tray.set_state("processing")
 
         # Stop audio capture
         self._audio.stop_recording()
@@ -160,6 +190,10 @@ class VoiceFlowApp:
             self._amplitude_task = None
         self._overlay.set_amplitude(0.0)
 
+        # Broadcast processing state
+        await self._broadcast_status()
+        await self._dashboard.broadcast({"type": "amplitude", "value": 0.0})
+
         # Collect all audio
         audio_chunks = []
         async for chunk in self._audio.audio_chunks():
@@ -169,6 +203,8 @@ class VoiceFlowApp:
             log.warning("No audio captured — ignoring")
             self._overlay.hide()
             self._state = AppState.IDLE
+            self._tray.set_state("idle")
+            await self._broadcast_status()
             return
 
         import numpy as np
@@ -180,7 +216,12 @@ class VoiceFlowApp:
             log.warning("Audio too short (<0.3s) — ignoring")
             self._overlay.hide()
             self._state = AppState.IDLE
+            self._tray.set_state("idle")
+            await self._broadcast_status()
             return
+
+        transcript: str = ""
+        polished: str = ""
 
         # Run STT + LLM concurrently-ish (STT must finish before LLM)
         try:
@@ -188,18 +229,29 @@ class VoiceFlowApp:
             if transcript:
                 polished = await self._polish(transcript)
                 await self._inject(polished)
+                # Broadcast transcript event
+                await self._dashboard.broadcast({
+                    "type": "transcript",
+                    "raw": transcript,
+                    "polished": polished,
+                    "ts": datetime.datetime.now().isoformat(),
+                })
             else:
                 log.warning("Empty transcript — nothing to inject")
                 self._overlay.flash_error()
+                await self._dashboard.broadcast({"type": "error", "message": "Empty transcript"})
         except Exception as e:
             log.error("Processing pipeline error: %s", e, exc_info=True)
             self._overlay.flash_error()
+            await self._dashboard.broadcast({"type": "error", "message": str(e)})
         finally:
             self._overlay.hide()
             self._state = AppState.IDLE
+            self._tray.set_state("idle")
+            await self._broadcast_status()
             # Save to history
-            if "transcript" in dir() and transcript:  # type: ignore[has-type]
-                self._save_history(transcript, polished if "polished" in dir() else transcript)  # type: ignore[has-type]
+            if transcript:
+                self._save_history(transcript, polished if polished else transcript)
 
     async def _transcribe(self, audio_bytes: bytes) -> str:
         """Run STT on audio bytes, return transcript string."""
@@ -246,14 +298,25 @@ class VoiceFlowApp:
         await self._injector.type_text(text)
 
     async def _update_amplitude(self) -> None:
-        """Continuously poll audio amplitude and update overlay."""
+        """Continuously poll audio amplitude and update overlay + dashboard."""
         while self._state == AppState.RECORDING:
-            self._overlay.set_amplitude(self._audio.amplitude)
+            amp = self._audio.amplitude
+            self._overlay.set_amplitude(amp)
+            await self._dashboard.broadcast({"type": "amplitude", "value": round(amp, 4)})
             await asyncio.sleep(0.033)  # ~30fps update
+
+    async def _broadcast_status(self) -> None:
+        """Push current state to all dashboard WebSocket clients."""
+        import time
+        state_name = self._state.name.lower()
+        await self._dashboard.broadcast({
+            "type": "status",
+            "state": state_name,
+            "uptime_s": 0,  # dashboard computes its own uptime
+        })
 
     def _save_history(self, raw: str, polished: str) -> None:
         """Append session to local history file."""
-        import datetime
         history_file = self.cfg.data_dir / "history.jsonl"
         try:
             import json
@@ -281,6 +344,7 @@ class VoiceFlowApp:
     def _shutdown(self) -> None:
         log.info("Shutting down...")
         self._overlay.stop()
+        self._tray.stop()
         if self._loop:
             for task in asyncio.all_tasks(self._loop):
                 task.cancel()
@@ -291,6 +355,8 @@ class VoiceFlowApp:
         if self._audio.is_recording:
             self._audio.stop_recording()
         self._overlay.stop()
+        self._dashboard.stop()
+        self._tray.stop()
         log.info("VoiceFlow stopped.")
 
     def _print_banner(self) -> None:
@@ -305,6 +371,7 @@ class VoiceFlowApp:
             f"  Inject : {self.cfg.injector.method}\n"
             f"  Config : {self.cfg.config_dir}/config.toml\n"
             f"  History: {self.cfg.data_dir}/history.jsonl\n"
+            f"  Dashboard: http://localhost:7878\n"
         )
 
 

@@ -18,6 +18,11 @@ dependencies = [
     "PyGObject>=3.44.0",
     "websockets>=12.0",
     "httpx>=0.27.0",
+    "fastapi>=0.111.0",
+    "uvicorn>=0.30.0",
+    "python-multipart>=0.0.9",
+    "pystray>=0.19.5",
+    "Pillow>=10.0.0",
 ]
 
 [project.scripts]
