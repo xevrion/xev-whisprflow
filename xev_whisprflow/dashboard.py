@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 STATIC_DIR = Path(__file__).parent / "static"
 HISTORY_FILE = Path.home() / ".local" / "share" / "xev-whisprflow" / "history.jsonl"
 CONFIG_FILE = Path.home() / ".config" / "xev-whisprflow" / "config.toml"
+ENV_FILE = Path.home() / ".config" / "xev-whisprflow" / ".env"
 _STRIP_KEYS = {"deepgram_api_key", "groq_api_key"}
 
 
@@ -170,6 +171,46 @@ class DashboardServer:
                 return {"ok": True}
             except Exception as e:
                 return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+        @app.get("/api/keys")
+        async def api_keys_get():
+            """Return which keys are set — never the values themselves."""
+            env = {}
+            if ENV_FILE.exists():
+                for line in ENV_FILE.read_text().splitlines():
+                    line = line.strip()
+                    if "=" in line and not line.startswith("#"):
+                        k, v = line.split("=", 1)
+                        env[k.strip()] = v.strip()
+            return {
+                "deepgram": bool(env.get("DEEPGRAM_API_KEY") and not env["DEEPGRAM_API_KEY"].startswith("your_")),
+                "groq": bool(env.get("GROQ_API_KEY") and not env["GROQ_API_KEY"].startswith("your_")),
+            }
+
+        @app.post("/api/keys")
+        async def api_keys_post(body: dict):
+            """Write API keys to .env. Accepts deepgram_key and groq_key."""
+            ENV_FILE.parent.mkdir(parents=True, exist_ok=True)
+            lines = ENV_FILE.read_text().splitlines() if ENV_FILE.exists() else []
+
+            def set_key(lines, env_name, value):
+                value = value.strip()
+                if not value:
+                    return lines
+                for i, line in enumerate(lines):
+                    if line.startswith(f"{env_name}=") or line.startswith(f"{env_name} ="):
+                        lines[i] = f"{env_name}={value}"
+                        return lines
+                lines.append(f"{env_name}={value}")
+                return lines
+
+            if "deepgram_key" in body:
+                lines = set_key(lines, "DEEPGRAM_API_KEY", body["deepgram_key"])
+            if "groq_key" in body:
+                lines = set_key(lines, "GROQ_API_KEY", body["groq_key"])
+
+            ENV_FILE.write_text("\n".join(lines) + "\n")
+            return {"ok": True}
 
         @app.post("/api/action")
         async def api_action(body: dict):

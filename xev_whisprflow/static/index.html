@@ -147,6 +147,10 @@ main { flex: 1; overflow-y: auto; padding: 28px 32px; scrollbar-width: thin; scr
 .slider-row input[type=range] { flex: 1; accent-color: var(--accent); }
 .slider-val { font-size: 12px; color: var(--muted); min-width: 28px; }
 .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.hint code { font-family: monospace; opacity: 0.7; }
+.key-status { font-size: 11px; font-weight: normal; margin-left: 4px; }
+.key-status.set { color: var(--green); }
+.key-status.unset { color: var(--red); }
 
 .service-btns { display: flex; gap: 8px; }
 .btn { padding: 7px 14px; border-radius: 6px; font-size: 13px; font-family: inherit; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text); transition: background 0.15s; }
@@ -334,6 +338,22 @@ main { flex: 1; overflow-y: auto; padding: 28px 32px; scrollbar-width: thin; scr
       </div>
 
       <div>
+        <div class="section-title">API keys</div>
+        <div class="card">
+          <div class="field">
+            <label>Deepgram <span id="dgStatus" class="key-status"></span></label>
+            <input type="password" id="cfgDeepgramKey" placeholder="Paste new key to update" autocomplete="off">
+          </div>
+          <div class="field">
+            <label>Groq <span id="groqStatus" class="key-status"></span></label>
+            <input type="password" id="cfgGroqKey" placeholder="Paste new key to update" autocomplete="off">
+          </div>
+          <div class="hint">Keys are written to <code>~/.config/xev-whisprflow/.env</code> and never sent back to the browser.</div>
+          <button class="btn" style="margin-top:12px" onclick="saveKeys()">Save keys</button>
+        </div>
+      </div>
+
+      <div>
         <div class="section-title">Service</div>
         <div class="card">
           <div class="service-btns">
@@ -483,6 +503,38 @@ async function loadSettings() {
     document.getElementById('cfgSttLang').value = c.stt?.language || 'en';
     document.getElementById('cfgLlmModel').value = c.llm?.model || 'llama-3.1-8b-instant';
   } catch (e) { toast('Failed to load config', true); }
+
+  try {
+    const kr = await fetch('/api/keys');
+    const keys = await kr.json();
+    const dg = document.getElementById('dgStatus');
+    const groq = document.getElementById('groqStatus');
+    dg.textContent = keys.deepgram ? 'set' : 'not set';
+    dg.className = 'key-status ' + (keys.deepgram ? 'set' : 'unset');
+    groq.textContent = keys.groq ? 'set' : 'not set';
+    groq.className = 'key-status ' + (keys.groq ? 'set' : 'unset');
+  } catch {}
+}
+
+async function saveKeys() {
+  const dg = document.getElementById('cfgDeepgramKey').value.trim();
+  const groq = document.getElementById('cfgGroqKey').value.trim();
+  if (!dg && !groq) { toast('No keys entered', true); return; }
+  const body = {};
+  if (dg) body.deepgram_key = dg;
+  if (groq) body.groq_key = groq;
+  try {
+    const r = await fetch('/api/keys', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (d.ok) {
+      toast('Keys saved');
+      document.getElementById('cfgDeepgramKey').value = '';
+      document.getElementById('cfgGroqKey').value = '';
+      loadSettings();
+    } else {
+      toast('Failed to save keys', true);
+    }
+  } catch { toast('Failed to save keys', true); }
 }
 
 async function saveSettings() {
